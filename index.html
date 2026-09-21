@@ -408,7 +408,6 @@ footer {
       <span>반달 유효폭 <b>295</b></span>
       <span>사각 유효폭 <b>300</b></span>
       <span>원장 길이 <b>2440</b></span>
-      <span>커프 <b>20</b></span>
       <span>재단손실 <b>+5</b></span>
       <span>낱개템바 <b>100</b></span>
       <span>끝단정리 <b>-20</b></span>
@@ -524,7 +523,7 @@ footer {
   </div>
 
   <footer>
-    <span>재단 지시서·도면 숫자 = 완성 치수. 재단손실 5mm 는 자르는 쪽에서 감안한다. 원장 점유 길이(완성 +5)는 계산 상세 표의 재단길이 칸에서 확인. 100폭 = 낱개 템바.</span>
+    <span>재단 지시서·도면 숫자 = 완성 치수. 톱날 손실은 조각마다 5mm(재단손실)로만 셉니다. 원장 점유 길이(완성 +5)는 계산 상세 표의 재단길이 칸에서 확인. 100폭 = 낱개 템바.</span>
     <span>템바보드는 세로만 재단합니다. 가로(폭)는 자르지 못해 규격 그대로 나가므로, 시공 가로가 요청 가로보다 넓을 수 있습니다.</span>
     <span>마감몰딩은 재단하지 않습니다. 15×1200 / 15×2440 규격 그대로만 주문됩니다. 넘치는 가로·몰딩 길이는 꼬리톱 등으로 직접 잘라 쓰셔야 합니다.</span>
   </footer>
@@ -688,8 +687,14 @@ const SHAPES = {
 /** 예전 표기(원형)로 들어온 입력도 계속 받는다. */
 const SHAPE_ALIASES = { round: 'half', 원형: 'half' };
 
-/** 톱날 손실(커프). 재단 1회당, 조각과 조각 사이에만 발생. */
-const KERF = 20;
+/**
+ * 톱날 손실(커프). 조각과 조각 사이에만 발생.
+ *
+ * 0 이다. 예전에 20 을 썼는데 톱날이 먹는 길이는 조각마다 빠지는 재단손실
+ * (CUT_LOSS 5)로 이미 세고 있어서 이중 계산이었다.
+ * 커프를 따로 빼야 하는 톱으로 바뀌면 이 값만 올린다.
+ */
+const KERF = 0;
 /** 끝단 정리 선택 시 원장에서 빠지는 길이. */
 const TRIM_LOSS = 20;
 /** 상단 마감몰딩 1면 차감. */
@@ -1848,8 +1853,9 @@ function formatQuote(result) {
       // 칸 크기는 원장 점유 길이(cutLength)로 그리고, 적는 숫자는 완성 치수로 맞춘다
       if (w > 34) parts.push(txt(x + w / 2, y + BAR / 2 + 4, String(g.finishedLength), { fill: inkOn(hex) }));
       x += w;
-      if (i < g.count - 1) {
-        parts.push(rect(x, y, KERF * scale, BAR, 'waste')); // 톱날 손실
+      // 커프가 0 이면 조각 사이에 그릴 게 없다 (톱날 손실은 재단손실 5 에 들어 있다)
+      if (i < g.count - 1 && KERF > 0) {
+        parts.push(rect(x, y, KERF * scale, BAR, 'waste'));
         x += KERF * scale;
       }
     }

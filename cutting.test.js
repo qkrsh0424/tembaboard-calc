@@ -80,8 +80,8 @@ test('TC-2 반달 / 화이트 / 590 × 800 / 몰딩 X / 끝단정리 X', () => {
   assert.deepEqual(item.widthPlan,
     { boards: 2, strips: 0, covered: 590, overhang: 0 },
     '590 = 295 × 2, 낱개 없음');
-  assert.equal(item.piecesPerSheet, 2, 'floor(2460 / 825)');
-  assert.equal(item.sheets, 1, 'ceil(2 / 2)');
+  assert.equal(item.piecesPerSheet, 3, 'floor(2440 / 805)');
+  assert.equal(item.sheets, 1, 'ceil(2 / 3)');
   assert.equal(item.cutCount, 6, 'floor(2440 / 805) × 2');
   assert.equal(item.molding, null, '몰딩 미사용');
 });
@@ -93,15 +93,15 @@ test('TC-3 TC-2와 동일 + 끝단정리 O', () => {
   });
 
   assert.equal(item.usableLength, 2420, '끝단정리 O → 2440 - 20');
-  assert.equal(item.piecesPerSheet, 2, 'floor(2440 / 825)');
-  assert.equal(item.sheets, 1, 'ceil(2 / 2)');
+  assert.equal(item.piecesPerSheet, 3, 'floor(2420 / 805)');
+  assert.equal(item.sheets, 1, 'ceil(2 / 3)');
 });
 
 test('TC-3 보강: 끝단정리가 원장당 개수를 가르는 구간', () => {
-  // 완성 795 → 재단 800. 끝단정리 X 는 3개, O 는 2개
-  const base = { shape: 'half', color: '화이트', width: 590, height: 795 };
-  assert.equal(calculateItem({ ...base, trimEnds: false }).piecesPerSheet, 3, 'floor(2460 / 820)');
-  assert.equal(calculateItem({ ...base, trimEnds: true }).piecesPerSheet, 2, 'floor(2440 / 820)');
+  // 완성 805 → 재단 810. 끝단정리 X 는 3개(2430), O 는 2개(2420 에 3개는 안 들어감)
+  const base = { shape: 'half', color: '화이트', width: 590, height: 805 };
+  assert.equal(calculateItem({ ...base, trimEnds: false }).piecesPerSheet, 3, 'floor(2440 / 810)');
+  assert.equal(calculateItem({ ...base, trimEnds: true }).piecesPerSheet, 2, 'floor(2420 / 810)');
 });
 
 // --- TC-4 (사각 유효폭) -----------------------------------------------------
@@ -305,14 +305,17 @@ test('재단 손실 — 완성 치수는 보존하고 5mm 크게 잘라낸다', 
   assert.equal(finishedLength(800, false), 800, '몰딩 X → 그대로');
   assert.equal(cutLength(800, false), 805);
   // 조각 1개당 1회. 3개 뽑으면 원장에서 5 × 3 = 15 를 더 쓴다.
-  assert.equal(piecesPerSheet(cutLength(800, false), 2440), 2, 'floor(2460 / 825)');
+  // 805 × 3 = 2415 ≤ 2440 이라 3개. 5mm 가 없었다면 2400 이라 역시 3개지만,
+  // 4개는 3220 이라 어느 쪽이든 안 된다.
+  assert.equal(piecesPerSheet(cutLength(800, false), 2440), 3, 'floor(2440 / 805)');
 });
 
 // --- 2.5 원장당 개수 검증 (CLAUDE.md 예시) ----------------------------------
-test('2.5 원장당 개수 — 커프 20mm', () => {
+test('2.5 원장당 개수 — 커프 0, 재단길이로만 나눈다', () => {
   assert.equal(piecesPerSheet(1985, 2440), 1);
-  assert.equal(piecesPerSheet(800, 2440), 3);  // 800+20+800+20+800 = 2440
-  assert.equal(piecesPerSheet(800, 2420), 2);
+  assert.equal(piecesPerSheet(800, 2440), 3);  // 800 × 3 = 2400 ≤ 2440
+  assert.equal(piecesPerSheet(810, 2440), 3);  // 810 × 3 = 2430
+  assert.equal(piecesPerSheet(810, 2420), 2);  // 끝단정리하면 3개가 안 들어간다
   assert.equal(piecesPerSheet(2441, 2440), 0); // 원장보다 긴 조각
 });
 
@@ -427,15 +430,15 @@ test('관리자 주문요약 — 폭 재단을 하지 않으므로 좁힌 폭이
 
 // --- 자투리 -----------------------------------------------------------------
 test('세로 자투리 — 가득 채운 자재와 마지막 자재를 나눠 계산', () => {
-  // L=700, 자재당 3개(2140 사용), 4개 필요 → 자재 2개
-  //   1개: 3개 뽑고 남음 2440 - 2140 = 300
+  // L=700, 자재당 3개(2100 사용), 4개 필요 → 자재 2개
+  //   1개: 3개 뽑고 남음 2440 - 2100 = 340
   //   2개: 1개 뽑고 남음 2440 - 700  = 1740
   assert.deepEqual(sheetTails(4, 3, 2440, 700), [
     { length: 1740, count: 1 },
-    { length: 300, count: 1 },
+    { length: 340, count: 1 },
   ]);
-  // 딱 맞아떨어지면 자투리 없음 (800×3 + 커프 2회 = 2440)
-  assert.deepEqual(sheetTails(6, 3, 2440, 800), []);
+  // 딱 맞아떨어지면 자투리 없음 (610 × 4 = 2440)
+  assert.deepEqual(sheetTails(8, 4, 2440, 610), []);
 });
 
 test('TC-1 자투리 — 원장/낱개를 나눠 적는다', () => {
@@ -459,8 +462,8 @@ test('TC-3 자투리 — 끝단정리 O 면 유효길이가 줄어 자투리도 
 
   assert.equal(plain.usableLength, 2440);
   assert.equal(trimmed.usableLength, 2420);
-  assert.deepEqual(sheetTails(2, 2, plain.usableLength, 805), [{ length: 810, count: 1 }]);
-  assert.deepEqual(sheetTails(2, 2, trimmed.usableLength, 805), [{ length: 790, count: 1 }]);
+  assert.deepEqual(sheetTails(2, 3, plain.usableLength, 805), [{ length: 830, count: 1 }]);
+  assert.deepEqual(sheetTails(2, 3, trimmed.usableLength, 805), [{ length: 810, count: 1 }]);
 });
 
 test('합산된 사양은 자투리도 합산 기준으로 다시 계산한다', () => {
@@ -469,12 +472,13 @@ test('합산된 사양은 자투리도 합산 기준으로 다시 계산한다',
     { shape: 'half', color: '화이트', width: 600, height: 800 },
   ]);
 
-  // 원장 2 + 2 = 4조각 → 자재당 2개 → 원장 2개. 낱개 1 + 1 = 2조각 → 낱개 1개
+  // 원장 2 + 2 = 4조각 → 자재당 3개 → 원장 2개 (3개 + 1개). 낱개 2조각 → 1개
   assert.equal(
     formatLeftovers(result),
     [
-      '반달-화이트 : 가로 295 X 세로 810, 2개 (세로 자르고 남은 부분)',
-      '반달-화이트 : 가로 100 X 세로 810, 1개 (세로 자르고 남은 부분)',
+      '반달-화이트 : 가로 295 X 세로 1635, 1개 (세로 자르고 남은 부분)', // 1조각만 뽑은 자재
+      '반달-화이트 : 가로 295 X 세로 25, 1개 (세로 자르고 남은 부분)',   // 2440 - 805×3
+      '반달-화이트 : 가로 100 X 세로 830, 1개 (세로 자르고 남은 부분)',  // 2440 - 805×2
     ].join('\n'),
   );
 });
@@ -489,15 +493,15 @@ test('몰딩 자투리는 색상별 합계', () => {
 });
 
 test('자투리가 하나도 없으면 그렇게 적는다', () => {
-  // 완성 795 → 재단 800. 자재당 3개(800×3 + 커프 40 = 2440)를 딱 채우고,
-  // 가로 885 = 295×3 이라 낱개도 폭 자투리도 없다.
+  // 완성 605 → 재단 610. 자재당 4개(610×4 = 2440)를 딱 채우고,
+  // 가로 1180 = 295×4 라 낱개도 없다.
   const result = calculate([
-    { shape: 'half', color: '화이트', width: 885, height: 795, useMolding: false },
+    { shape: 'half', color: '화이트', width: 1180, height: 605, useMolding: false },
   ]);
   assert.equal(formatLeftovers(result), '');
   assert.equal(
     formatCuttingSheetWithLeftovers(result),
-    ['반달-화이트 : 795 - 3조각', '', '--- 자투리 ---', '자투리 없음'].join('\n'),
+    ['반달-화이트 : 605 - 4조각', '', '--- 자투리 ---', '자투리 없음'].join('\n'),
   );
 });
 
@@ -576,11 +580,11 @@ test('벽면 배치도 — 세로가 나뉘면 행도 나뉜다', () => {
 test('재단 도면 — 자재 1개에 들어가는 조각과 남는 길이', () => {
   const result = calculate([{ shape: 'square', color: '화이트', width: 600, height: 800 }]);
 
-  // 재단 805, 자재당 2개, 조각 2개 → 자재 1개에 2조각
+  // 재단 805, 자재당 3개인데 조각은 2개뿐 → 자재 1개에 2조각, 남음 2440 - 1610
   assert.deepEqual(result.barGroups, [{
     shape: '사각', shapeKey: 'square', color: '화이트', kind: 'board', stockWidth: 300,
     sheetLength: 2440, usableLength: 2440, trimEnds: false,
-    cutLength: 805, finishedLength: 800, count: 2, used: 1630, tail: 810, bars: 1,
+    cutLength: 805, finishedLength: 800, count: 2, used: 1610, tail: 830, bars: 1,
   }]);
 });
 
