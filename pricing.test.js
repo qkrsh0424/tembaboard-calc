@@ -11,9 +11,9 @@ import { PRICES, boardPrice, cuttingPrice, formatQuote, moldingPrice, quote, str
 test('원장 단가는 색상과 무관하다', () => {
   assert.equal(boardPrice('half', '화이트'), 40500);
   assert.equal(boardPrice('half', '카키'), 40500);
-  assert.equal(boardPrice('square', '화이트'), 43000);
-  assert.equal(boardPrice('square', '진한오크'), 43000);
-  assert.equal(boardPrice('square', '밝은오크'), 43000);
+  assert.equal(boardPrice('square', '화이트'), 45000);
+  assert.equal(boardPrice('square', '진한오크'), 45000);
+  assert.equal(boardPrice('square', '밝은오크'), 45000);
 });
 
 test('낱개 템바 / 마감몰딩 단가', () => {
@@ -44,16 +44,16 @@ test('사각 견적 — 낱개까지 합산', () => {
   const result = calculate([{ shape: 'square', color: '진한오크', width: 400, height: 800 }]);
   const q = quote(result);
 
-  // 원장 1장 43,000 + 재단 6회 3,000 + 낱개 1개 16,000
-  assert.equal(q.total, 62000);
-  assert.ok(formatQuote(result).includes('합계 : 62,000원'));
+  // 원장 1장 45,000 + 재단 6회 3,000 + 낱개 1개 16,000
+  assert.equal(q.total, 64000);
+  assert.ok(formatQuote(result).includes('합계 : 64,000원'));
 });
 
 test('재단비는 재단 횟수만큼 붙는다', () => {
   const result = calculate([{ shape: 'square', color: '화이트', width: 300, height: 800 }]);
-  // 원장 1장 43,000 + 재단 floor(2440/805) × 1 = 3회 × 500
+  // 원장 1장 45,000 + 재단 floor(2440/805) × 1 = 3회 × 500
   assert.ok(formatQuote(result).includes('재단 필요해요 > 톡톡으로 말씀주세요 : 3개 × 500원 = 1,500원'));
-  assert.equal(quote(result).total, 44500);
+  assert.equal(quote(result).total, 46500);
 });
 
 test('단가를 모르는 항목은 합계에서 빠지고 그렇게 적는다', () => {
@@ -64,7 +64,7 @@ test('단가를 모르는 항목은 합계에서 빠지고 그렇게 적는다',
     const text = formatQuote(result);
     assert.ok(text.includes('재단 필요해요 > 톡톡으로 말씀주세요 : 3개 × 단가 미정'), text);
     assert.ok(text.includes('※ 단가 미정'), text);
-    assert.equal(quote(result).total, 43000, '원장 1장만 합산');
+    assert.equal(quote(result).total, 45000, '원장 1장만 합산');
   } finally {
     PRICES.cutting = saved;
   }
