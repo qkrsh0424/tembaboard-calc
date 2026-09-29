@@ -484,17 +484,25 @@ TC-2와 동일하되 끝단정리 O → 원장당 floor(2420/805) = 3 → 소요
 보여 준다. 사장용 계산기와 완전히 별개 페이지다.
 
 ```
-브라우저 (preview.html)                    서버 (api/preview.js)
- 사진 → 긴 변 1280px JPEG 로 축소   ──POST──▶  GEMINI_API_KEY 로 이미지 모델 호출
- 모양·색 → 프롬프트 생성            ◀─이미지──  결과 base64 반환
+브라우저 (preview.html)                     서버 (api/preview.js)
+ 사진 → 긴 변 1280px JPEG 로 축소   ──POST───▶ 힉스필드에 업로드 + 생성 요청
+ 모양·색 → 프롬프트 생성            ◀requestId─
+ 3초마다 상태 확인                  ──GET────▶ /requests/{id}/status 중계
+                                    ◀imageUrl─ 완료된 이미지 주소
 ```
 
-- **API 키는 브라우저에 절대 두지 않는다.** `api/preview.js` 가 대신 부르고, 키는
-  환경변수 `GEMINI_API_KEY` 에 둔다. 모델은 `PREVIEW_MODEL` 로 바꿀 수 있다.
-- 기본 모델은 `gemini-3.1-flash-image`. 나노바나나(`gemini-2.5-flash-image`)는
-  2026-10-02 에 종료됐다. **이 모델은 API 무료 티어가 없다.** 값은 확인 후 쓸 것.
-- 코드를 붙이기 전 프롬프트 품질 확인은 **Google AI Studio 웹 화면에서 무료로** 한다.
-  사진 올리고 프롬프트 붙여넣으면 끝이라 키도 배포도 필요 없다.
+**생성이 30~60초 걸린다.** 서버리스 함수는 그 전에 끊기므로 제출(POST)과 상태
+조회(GET)를 나눴다. 한 함수에서 기다리게 고치면 타임아웃 난다.
+
+- **API 키는 브라우저에 절대 두지 않는다.** `api/preview.js` 가 대신 부른다.
+  키는 `HF_API_KEY_ID` / `HF_API_KEY_SECRET` 두 환경변수에 둔다.
+  console.higgsfield.ai 에서 발급하고 Vercel 대시보드에만 넣는다. **저장소는 공개다.**
+- 모델은 `marketing-studio/image/flare` (= GPT Image 2.5 Flare). Claude 커넥터로
+  실물 사진에 테스트해 승인받은 그 모델이다. `PREVIEW_ENDPOINT` 로 바꿀 수 있다.
+- `quality` 기본값은 `low`. 이 값으로 뽑은 결과를 승인받았다. 올리면 장당 비용이 오른다.
+- `enhance_prompt` 는 반드시 `false`. 켜면 프리셋이 필요하고 우리 프롬프트가 덮인다.
+- `aspect_ratio` 에 `auto` 를 쓰지 않는다. 문서상 정사각으로 떨어진다.
+  브라우저가 사진 비율에서 가장 가까운 값을 골라 보낸다.
 - 정적 호스팅(GitHub Pages)만으로는 `/api/preview` 가 돌지 않는다. 페이지와 함수를
   **같은 도메인**에서 서빙해야 한다(Vercel 등). 다른 도메인에 두면 CORS 로 막힌다.
   CORS 를 일부러 열어 두지 않았다 — 열면 남의 사이트가 우리 크레딧을 쓸 수 있다.

@@ -270,7 +270,8 @@ footer {
         cv.height = Math.round(img.height * scale);
         cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
         const dataUrl = cv.toDataURL('image/jpeg', 0.85);
-        photo = { dataUrl, base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' };
+        photo = { dataUrl, base64: dataUrl.split(',')[1], mimeType: 'image/jpeg',
+                  ratio: nearestRatio(cv.width / cv.height) };
         say('', '');
         $('#download').hidden = true;
         $('#talk').hidden = true;
@@ -282,6 +283,14 @@ footer {
     };
     reader.onerror = () => say('사진을 읽지 못했습니다.', 'err');
     reader.readAsDataURL(file);
+  }
+
+  /** 모델이 받는 비율 중 사진에 가장 가까운 것. 'auto' 는 정사각이 되어 쓰지 않는다. */
+  function nearestRatio(r) {
+    const list = ['1:1','3:2','2:3','4:3','3:4','16:9','9:16','21:9','27:16','16:27','9:8','8:9','4:5','5:4'];
+    const val = (name) => { const [w, h] = name.split(':').map(Number); return w / h; };
+    return list.reduce((best, name) =>
+      (Math.abs(val(name) - r) < Math.abs(val(best) - r) ? name : best), '1:1');
   }
 
   function buildPrompt() {
@@ -307,13 +316,29 @@ footer {
     ].join('\n');
   }
 
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  /** 결과가 나올 때까지 3초마다 물어본다. 2분 넘으면 포기한다. */
+  async function waitForImage(requestId) {
+    const deadline = Date.now() + 120000;
+    while (Date.now() < deadline) {
+      await sleep(3000);
+      const r = await fetch('/api/preview?id=' + encodeURIComponent(requestId));
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || '상태를 확인하지 못했습니다.');
+      if (d.status === 'completed') return d.imageUrl;
+      if (d.status === 'failed') throw new Error(d.error || '이미지를 만들지 못했습니다.');
+    }
+    throw new Error('시간이 너무 오래 걸립니다. 잠시 후 다시 시도해 주세요.');
+  }
+
   async function generate() {
     if (!photo) return;
     const btn = $('#go');
     btn.disabled = true;
     const label = btn.textContent;
     btn.textContent = '만드는 중…';
-    say('사진에 템바보드를 입히고 있습니다. 20초쯤 걸립니다.', 'wait');
+    say('사진에 템바보드를 입히고 있습니다. 1분쯤 걸립니다.', 'wait');
 
     try {
       const r = await fetch('/api/preview', {
@@ -322,6 +347,7 @@ footer {
         body: JSON.stringify({
           imageBase64: photo.base64,
           mimeType: photo.mimeType,
+          aspectRatio: photo.ratio,
           prompt: buildPrompt(),
         }),
       });
@@ -330,15 +356,24 @@ footer {
         say(data.error || '이미지를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.', 'err');
         return;
       }
-      const url = 'data:' + (data.mimeType || 'image/png') + ';base64,' + data.imageBase64;
+
+      const url = await waitForImage(data.requestId);
       renderShot(url);
+      // 다른 도메인 이미지는 download 속성이 안 먹어서 받아다 blob 으로 바꾼다
       const dl = $('#download');
-      dl.href = url;
+      try {
+        const blob = await (await fetch(url)).blob();
+        dl.href = URL.createObjectURL(blob);
+      } catch (e) {
+        dl.href = url;
+        dl.removeAttribute('download');
+        dl.target = '_blank';
+      }
       dl.hidden = false;
       $('#talk').hidden = !TALK_URL;
       say('', '');
     } catch (e) {
-      say('연결에 실패했습니다. 인터넷 상태를 확인하고 다시 시도해 주세요.', 'err');
+      say(e.message || '연결에 실패했습니다. 인터넷 상태를 확인하고 다시 시도해 주세요.', 'err');
     } finally {
       btn.textContent = label;
       btn.disabled = !photo;

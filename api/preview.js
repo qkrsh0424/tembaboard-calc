@@ -1,45 +1,56 @@
 /**
- * 벽 사진 + 색상 선택 → 템바보드가 붙은 이미지를 AI 로 만들어 돌려준다.
+ * 벽 사진 + 색상 선택 → 템바보드가 붙은 이미지를 만들어 돌려준다.
  *
- * 브라우저에서 직접 부르면 API 키가 노출되므로 이 함수가 대신 부른다.
- * 키는 환경변수 GEMINI_API_KEY 에 둔다 (Vercel > Settings > Environment Variables).
+ * 힉스필드 API 를 쓴다. 모델은 Marketing Studio Image 2.5 Flare
+ * (= 커넥터로 테스트했던 GPT Image 2.5 Flare 와 같은 모델).
  *
- * 배포: 저장소를 Vercel 에 연결하면 이 파일이 자동으로 /api/preview 가 된다.
+ * 생성이 30~60초 걸려서 서버리스 함수 하나로는 타임아웃이 난다. 그래서 둘로 나눈다.
+ *   POST /api/preview          → 사진 업로드 + 생성 요청 → { requestId }
+ *   GET  /api/preview?id=...   → 상태 조회 → { status } 또는 { status, imageUrl }
+ * 브라우저가 몇 초 간격으로 GET 을 두드린다.
+ *
+ * 키는 환경변수 두 개에 둔다. 코드에도 git 에도 절대 넣지 않는다.
+ *   HF_API_KEY_ID / HF_API_KEY_SECRET
+ * console.higgsfield.ai 에서 발급하고 Vercel > Settings > Environment Variables 에 넣는다.
  */
 
-/**
- * 이미지 모델. 환경변수 PREVIEW_MODEL 로 갈아끼운다.
- * gemini-2.5-flash-image(나노바나나)는 2026-10-02 종료라 후속 모델을 기본값으로 둔다.
- */
-const MODEL = process.env.PREVIEW_MODEL || 'gemini-3.1-flash-image';
-const ENDPOINT = (model) =>
-  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+const API = 'https://api.higgsfield.ai';
+const ENDPOINT = process.env.PREVIEW_ENDPOINT || 'marketing-studio/image/flare';
+/** low/medium/high/xhigh/max. 올릴수록 장당 비용이 오른다. */
+const QUALITY = process.env.PREVIEW_QUALITY || 'low';
+const RESOLUTION = process.env.PREVIEW_RESOLUTION || '1k';
 
 /**
- * 업로드 상한. 프론트가 긴 변 1280px JPEG 로 줄여서 보내므로 보통 200~500KB 다.
+ * 업로드 상한. 프론트가 긴 변 1280px JPEG 로 줄여 보내므로 보통 200~500KB 다.
  * Vercel 서버리스 함수는 요청 본문이 4.5MB 를 넘으면 함수까지 오지도 않는다.
  */
 const MAX_BYTES = 3 * 1024 * 1024;
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+/** 모델이 받는 비율. 'auto' 는 정사각으로 떨어져서 뺐다. */
+const ALLOWED_RATIO = new Set([
+  '1:1', '3:2', '2:3', '4:3', '3:4', '16:9', '9:16', '21:9', '27:16', '16:27', '9:8', '8:9', '4:5', '5:4',
+]);
 
 /**
  * 한 인스턴스가 살아 있는 동안의 호출 간격 제한.
- * 서버리스라 인스턴스가 여러 개면 우회되지만, 실수로 새로고침을 연타했을 때
- * 크레딧이 줄줄 새는 것 정도는 막는다.
- * ponytail: 인스턴스 단위 방어. 진짜 남용을 막아야 하면 Vercel KV 로 IP·일일 한도를 건다.
+ * ponytail: 인스턴스 단위 방어라 완전하지 않다. 진짜 남용을 막으려면 Vercel KV 로 일일 한도.
  */
 const lastCallAt = new Map();
 const MIN_GAP_MS = 3000;
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'POST 로 보내 주세요.' });
-  }
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY 가 설정되지 않았습니다.' });
-  }
+const authHeader = () => `Key ${process.env.HF_API_KEY_ID}:${process.env.HF_API_KEY_SECRET}`;
 
+export default async function handler(req, res) {
+  if (!process.env.HF_API_KEY_ID || !process.env.HF_API_KEY_SECRET) {
+    return res.status(500).json({ error: '힉스필드 API 키가 설정되지 않았습니다.' });
+  }
+  if (req.method === 'GET') return status(req, res);
+  if (req.method === 'POST') return submit(req, res);
+  return res.status(405).json({ error: 'POST 또는 GET 으로 보내 주세요.' });
+}
+
+/** 생성 요청을 넣고 requestId 만 돌려준다. 결과는 기다리지 않는다. */
+async function submit(req, res) {
   const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
   const now = Date.now();
   if (now - (lastCallAt.get(ip) ?? 0) < MIN_GAP_MS) {
@@ -47,7 +58,7 @@ export default async function handler(req, res) {
   }
   lastCallAt.set(ip, now);
 
-  const { imageBase64, mimeType, prompt } = req.body ?? {};
+  const { imageBase64, mimeType, prompt, aspectRatio } = req.body ?? {};
   if (typeof imageBase64 !== 'string' || !imageBase64) {
     return res.status(400).json({ error: '사진이 없습니다.' });
   }
@@ -58,51 +69,76 @@ export default async function handler(req, res) {
   if (imageBase64.length * 0.75 > MAX_BYTES) {
     return res.status(413).json({ error: '사진이 너무 큽니다.' });
   }
-  if (typeof prompt !== 'string' || prompt.length > 4000) {
+  if (typeof prompt !== 'string' || !prompt || prompt.length > 4000) {
     return res.status(400).json({ error: '요청 내용이 올바르지 않습니다.' });
   }
+  const ratio = ALLOWED_RATIO.has(aspectRatio) ? aspectRatio : '16:9';
 
   try {
-    const upstream = await fetch(ENDPOINT(MODEL), {
+    const slotRes = await fetch(`${API}/files/generate-upload-url`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+      headers: { Authorization: authHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content_type: mimeType }),
+    });
+    if (!slotRes.ok) throw new Error(`upload-url ${slotRes.status} ${await slotRes.text()}`);
+    const slot = await slotRes.json();
+
+    const putRes = await fetch(slot.upload_url, {
+      method: 'PUT',
+      headers: slot.upload_headers ?? { 'Content-Type': mimeType },
+      body: Buffer.from(imageBase64, 'base64'),
+    });
+    if (!putRes.ok) throw new Error(`put ${putRes.status}`);
+
+    const genRes = await fetch(`${API}/${ENDPOINT}`, {
+      method: 'POST',
+      headers: { Authorization: authHeader(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{
-          role: 'user',
-          parts: [
-            { inline_data: { mime_type: mimeType, data: imageBase64 } },
-            { text: prompt },
-          ],
-        }],
+        prompt,
+        image_urls: [slot.public_url],
+        aspect_ratio: ratio,
+        resolution: RESOLUTION,
+        quality: QUALITY,
+        enhance_prompt: false,
       }),
     });
+    if (!genRes.ok) throw new Error(`generate ${genRes.status} ${await genRes.text()}`);
+    const job = await genRes.json();
 
-    if (!upstream.ok) {
-      const detail = await upstream.text();
-      console.error('image api error', upstream.status, detail.slice(0, 500));
-      return res.status(502).json({ error: '이미지를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.' });
+    return res.status(200).json({ requestId: job.request_id });
+  } catch (e) {
+    console.error('submit', e);
+    return res.status(502).json({ error: '이미지를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.' });
+  }
+}
+
+/** 브라우저가 몇 초마다 부른다. 완료면 이미지 주소를 준다. */
+async function status(req, res) {
+  const id = req.query?.id;
+  if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id)) {
+    return res.status(400).json({ error: '잘못된 요청입니다.' });
+  }
+  try {
+    const r = await fetch(`${API}/requests/${id}/status`, {
+      headers: { Authorization: authHeader() },
+    });
+    if (!r.ok) throw new Error(`status ${r.status}`);
+    const data = await r.json();
+
+    if (data.status === 'completed') {
+      const url = data.images?.[0]?.url;
+      if (!url) throw new Error('완료됐는데 이미지가 없다');
+      return res.status(200).json({ status: 'completed', imageUrl: url });
     }
-
-    const data = await upstream.json();
-    const parts = data?.candidates?.[0]?.content?.parts ?? [];
-    // 응답 형식이 inline_data / inlineData 둘 다로 오는 경우가 있어 양쪽을 본다
-    const image = parts.map((p) => p.inline_data ?? p.inlineData).find((d) => d?.data);
-
-    if (!image) {
-      // 모델이 이미지를 거절하고 텍스트만 돌려주는 경우 (사람 얼굴이 크게 나온 사진 등)
-      const text = parts.map((p) => p.text).filter(Boolean).join(' ').slice(0, 200);
-      console.error('no image in response', text);
-      return res.status(422).json({
+    if (data.status === 'failed' || data.status === 'canceled') {
+      return res.status(200).json({
+        status: 'failed',
         error: '이 사진으로는 합성하지 못했습니다. 벽이 잘 보이는 다른 사진으로 시도해 주세요.',
       });
     }
-
-    return res.status(200).json({
-      imageBase64: image.data,
-      mimeType: image.mime_type ?? image.mimeType ?? 'image/png',
-    });
+    return res.status(200).json({ status: data.status ?? 'queued' });
   } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: '이미지를 만들지 못했습니다.' });
+    console.error('status', e);
+    return res.status(502).json({ error: '상태를 확인하지 못했습니다.' });
   }
 }
