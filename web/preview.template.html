@@ -1,0 +1,360 @@
+<title>템바보드 미리보기 — 우리 벽에 붙여 보기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+
+<style>
+:root {
+  --ground: #F3F3EE;
+  --surface: #FFFFFF;
+  --sunken: #EAEAE2;
+  --ink: #1B1C17;
+  --muted: #6C6F63;
+  --line: #DCDCD2;
+  --line-strong: #C2C2B4;
+  --accent: #9A7A08;
+  --accent-ink: #6B5405;
+  --accent-soft: #F3E9C4;
+  --bad: #A5342A;
+  --bad-soft: #F6E3E0;
+
+  --sans: "IBM Plex Sans KR", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif;
+  --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #17180F; --surface: #202117; --sunken: #292A1F;
+    --ink: #EDEDE3; --muted: #9B9E8E; --line: #33352A; --line-strong: #4A4C3E;
+    --accent: #D9B444; --accent-ink: #EBCE7C; --accent-soft: #3B3520;
+    --bad: #E08479; --bad-soft: #3A241F;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #17180F; --surface: #202117; --sunken: #292A1F;
+  --ink: #EDEDE3; --muted: #9B9E8E; --line: #33352A; --line-strong: #4A4C3E;
+  --accent: #D9B444; --accent-ink: #EBCE7C; --accent-soft: #3B3520;
+  --bad: #E08479; --bad-soft: #3A241F;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--ground); color: var(--ink);
+  font-family: var(--sans); font-size: 15px; line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 860px; margin: 0 auto; padding: 40px 20px 72px; display: flex; flex-direction: column; gap: 28px; }
+
+header { display: flex; flex-direction: column; gap: 8px; }
+.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent-ink); }
+h1 { margin: 0; font-size: clamp(26px, 5vw, 36px); font-weight: 700; letter-spacing: -.02em; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 54ch; }
+
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.step-head { display: flex; align-items: baseline; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.step-no { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .1em; }
+.step-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.step-body { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+
+/* 모양 */
+.seg { display: flex; border: 1px solid var(--line-strong); border-radius: 4px; overflow: hidden; max-width: 320px; }
+.seg button {
+  flex: 1; font-family: var(--sans); font-size: 15px; padding: 10px 6px;
+  background: var(--surface); color: var(--muted); border: 0; cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--line-strong); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+
+/* 색상 */
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+.sw {
+  display: flex; flex-direction: column; gap: 6px; padding: 7px;
+  border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surface);
+  cursor: pointer; text-align: left; font-family: var(--sans); color: var(--ink);
+}
+.sw i { display: block; height: 46px; border-radius: 3px; border: 1px solid rgba(0,0,0,.14); }
+.sw span { font-size: 12px; line-height: 1.35; }
+.sw em { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--muted); font-style: normal; }
+.sw[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.sw:focus-visible, .seg button:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 업로드 */
+.drop {
+  border: 1.5px dashed var(--line-strong); border-radius: 6px; background: var(--sunken);
+  padding: 28px 18px; text-align: center; color: var(--muted); cursor: pointer;
+}
+.drop.over { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+.drop b { display: block; color: var(--ink); font-size: 15px; margin-bottom: 4px; }
+.drop input { display: none; }
+.shot { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+figure.shot-one { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+figure.shot-one img { width: 100%; border-radius: 5px; border: 1px solid var(--line); display: block; }
+figure.shot-one figcaption { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+/* 버튼 */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  font-family: var(--sans); font-size: 15px; font-weight: 500; padding: 12px 20px;
+  border-radius: 4px; border: 1px solid var(--line-strong); background: var(--surface);
+  color: var(--ink); cursor: pointer; text-decoration: none;
+}
+.btn.solid { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+.btn:disabled, .btn.is-disabled { opacity: .45; cursor: not-allowed; }
+.btn.solid:not(:disabled):hover { background: var(--accent-ink); border-color: var(--accent-ink); color: #fff; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+.msg { padding: 11px 14px; border-radius: 4px; font-size: 13.5px; }
+.msg.err { background: var(--bad-soft); color: var(--bad); }
+.msg.wait { background: var(--accent-soft); color: var(--accent-ink); }
+
+.note { font-size: 12.5px; color: var(--muted); }
+footer {
+  font-size: 12px; color: var(--muted);
+  border-top: 1px solid var(--line); padding-top: 16px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">템바보드 미리보기</div>
+    <h1>우리 집 벽에 붙여 보기</h1>
+    <p class="lede">색을 고르고 벽 사진을 올리면, 그 벽에 템바보드를 붙인 모습을 만들어 드립니다.</p>
+  </header>
+
+  <section class="step">
+    <div class="step-head"><span class="step-no">01</span><h2>모양 고르기</h2></div>
+    <div class="step-body">
+      <div class="seg" id="shapes"></div>
+      <p class="note" id="shape-note"></p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-no">02</span><h2>색 고르기</h2></div>
+    <div class="step-body">
+      <div class="swatches" id="colors"></div>
+      <p class="note">화면 색은 기기마다 달라 보입니다. 실제 색은 실물 샘플로 확인해 주세요.</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-no">03</span><h2>벽 사진 올리기</h2></div>
+    <div class="step-body">
+      <label class="drop" id="drop">
+        <b>사진을 여기에 끌어 놓거나 눌러서 고르세요</b>
+        붙일 벽이 정면으로 크게 나온 사진일수록 잘 나옵니다 · JPG / PNG
+        <input type="file" id="file" accept="image/jpeg,image/png,image/webp">
+      </label>
+      <div class="shot" id="shot" hidden></div>
+      <div class="actions">
+        <button class="btn solid" id="go" disabled>미리보기 만들기</button>
+        <a class="btn" id="download" hidden download="템바보드_미리보기.png">이미지 저장</a>
+        <a class="btn" id="talk" target="_blank" rel="noopener" hidden>이 색으로 문의하기</a>
+      </div>
+      <div id="msg"></div>
+    </div>
+  </section>
+
+  <footer>
+    <span>결과 이미지는 AI 가 만든 참고용 합성입니다. 실제 시공 결과·색감과 다를 수 있습니다.</span>
+    <span>올린 사진은 이미지를 만드는 데에만 쓰고 따로 보관하지 않습니다.</span>
+  </footer>
+</div>
+
+<script>
+/* ===== 색상·규격 데이터 (build.js 가 colors.js 등을 그대로 주입) ===== */
+/*__BUNDLE__*/
+</script>
+
+<script>
+(function () {
+  const $ = (s) => document.querySelector(s);
+
+  /**
+   * 결 하나의 폭. 프롬프트에 넣어 AI 가 결 간격을 잡는 기준으로 쓴다.
+   * ⚠️ 실측값이 아니다. 제품 실제 결 폭으로 고쳐야 그림이 실물에 가까워진다.
+   */
+  const RIB_PITCH_MM = 50;
+
+  /**
+   * 무늬결(오크·티크)인지 단색인지.
+   * ⚠️ 색 이름에서 추정한 값이다. 실제 마감과 다르면 이 함수만 고친다.
+   */
+  const isWood = (name) => /오크|티크/.test(name);
+
+  const PROFILE = {
+    half: 'evenly spaced convex half-round (bullnose) ribs, each rib a smooth vertical half-cylinder with a soft rounded highlight down its centre',
+    square: 'evenly spaced flat rectangular slats separated by narrow square-cut grooves, giving a crisp stepped profile',
+  };
+
+  let shape = 'half';
+  let color = colorsForShape('half')[0].name;
+  let photo = null; // { dataUrl, base64, mimeType }
+
+  function renderShapes() {
+    const box = $('#shapes');
+    box.innerHTML = '';
+    for (const key of Object.keys(SHAPES)) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = SHAPES[key].label;
+      b.setAttribute('aria-pressed', String(shape === key));
+      b.onclick = () => {
+        shape = key;
+        if (!isColorAvailable(color, key)) color = colorsForShape(key)[0].name;
+        render();
+      };
+      box.appendChild(b);
+    }
+    $('#shape-note').textContent = shape === 'half'
+      ? '반달 — 결이 둥글게 솟은 모양입니다.'
+      : '사각 — 결이 각지게 떨어지는 모양입니다.';
+  }
+
+  function renderColors() {
+    const box = $('#colors');
+    box.innerHTML = '';
+    for (const c of colorsForShape(shape)) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'sw';
+      b.setAttribute('aria-pressed', String(c.name === color));
+      b.innerHTML =
+        '<i style="background:' + (swatchOf(c.name, shape) || '#D8CBA8') + '"></i>' +
+        '<span>' + c.name + '<em>' + colorCode(c.name, shape) + '</em></span>';
+      b.onclick = () => { color = c.name; render(); };
+      box.appendChild(b);
+    }
+  }
+
+  function renderShot(resultUrl) {
+    const box = $('#shot');
+    if (!photo) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    box.innerHTML =
+      '<figure class="shot-one"><img src="' + photo.dataUrl + '" alt="올린 벽 사진"><figcaption>올린 사진</figcaption></figure>' +
+      (resultUrl
+        ? '<figure class="shot-one"><img src="' + resultUrl + '" alt="템바보드를 붙인 미리보기"><figcaption>' +
+          SHAPES[shape].label + ' · ' + storeColorLabel(color, shape) + '</figcaption></figure>'
+        : '');
+  }
+
+  function render() {
+    renderShapes();
+    renderColors();
+    $('#go').disabled = !photo;
+    const talk = $('#talk');
+    if (TALK_URL) { talk.href = TALK_URL; }
+  }
+
+  function say(text, kind) {
+    $('#msg').innerHTML = text ? '<div class="msg ' + kind + '">' + text + '</div>' : '';
+  }
+
+  /** 사진을 긴 변 1280px 로 줄여서 올린다. 빠르고 싸고, 결과 품질 차이는 거의 없다. */
+  function loadPhoto(file) {
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+      say('JPG, PNG, WEBP 사진만 올릴 수 있습니다.', 'err');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 1280;
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(img.width * scale);
+        cv.height = Math.round(img.height * scale);
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        const dataUrl = cv.toDataURL('image/jpeg', 0.85);
+        photo = { dataUrl, base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' };
+        say('', '');
+        $('#download').hidden = true;
+        $('#talk').hidden = true;
+        renderShot(null);
+        render();
+      };
+      img.onerror = () => say('사진을 읽지 못했습니다. 다른 사진으로 시도해 주세요.', 'err');
+      img.src = reader.result;
+    };
+    reader.onerror = () => say('사진을 읽지 못했습니다.', 'err');
+    reader.readAsDataURL(file);
+  }
+
+  function buildPrompt() {
+    const hex = swatchOf(color, shape) || '#D8CBA8';
+    const finish = isWood(color)
+      ? 'natural wood grain with fine vertical grain lines'
+      : 'smooth matte painted finish with no wood grain';
+
+    return [
+      'Edit this photograph of a real room.',
+      'Keep the room exactly as it is: same camera angle, same perspective, same furniture, same floor, same ceiling, same windows, same lighting and shadows. Do not add, move or remove any object.',
+      '',
+      'Change ONLY the main flat wall surface: cover it with vertical fluted wall panelling.',
+      'Profile: ' + PROFILE[shape] + '.',
+      'The ribs run strictly vertical from floor to ceiling, perfectly parallel and evenly spaced, and follow the wall perspective of the photo.',
+      'Each rib is about ' + RIB_PITCH_MM + 'mm wide in real-world scale, so scale the ribs against the furniture and the ceiling height in the photo.',
+      '',
+      'Colour: exactly ' + hex + ' (' + colorCode(color, shape) + ', ' + color + '), ' + finish + '.',
+      'Reproduce this colour accurately. Do not shift the hue, do not make it darker, lighter or more saturated. Only the lighting already in the photo may shade it.',
+      '',
+      'Keep power outlets, switches, door frames, window frames, skirting boards and trim visible and correctly positioned in front of the panelling.',
+      'Photorealistic result, same resolution and framing as the input photo.',
+    ].join('\n');
+  }
+
+  async function generate() {
+    if (!photo) return;
+    const btn = $('#go');
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = '만드는 중…';
+    say('사진에 템바보드를 입히고 있습니다. 20초쯤 걸립니다.', 'wait');
+
+    try {
+      const r = await fetch('/api/preview', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: photo.base64,
+          mimeType: photo.mimeType,
+          prompt: buildPrompt(),
+        }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        say(data.error || '이미지를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.', 'err');
+        return;
+      }
+      const url = 'data:' + (data.mimeType || 'image/png') + ';base64,' + data.imageBase64;
+      renderShot(url);
+      const dl = $('#download');
+      dl.href = url;
+      dl.hidden = false;
+      $('#talk').hidden = !TALK_URL;
+      say('', '');
+    } catch (e) {
+      say('연결에 실패했습니다. 인터넷 상태를 확인하고 다시 시도해 주세요.', 'err');
+    } finally {
+      btn.textContent = label;
+      btn.disabled = !photo;
+    }
+  }
+
+  // 업로드: 클릭 + 드래그앤드롭
+  $('#file').addEventListener('change', (e) => loadPhoto(e.target.files[0]));
+  const drop = $('#drop');
+  ['dragenter', 'dragover'].forEach((ev) =>
+    drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) =>
+    drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => loadPhoto(e.dataTransfer.files[0]));
+
+  $('#go').addEventListener('click', generate);
+
+  render();
+})();
+</script>

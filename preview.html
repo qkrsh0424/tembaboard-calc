@@ -1,0 +1,1285 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="색을 고르고 벽 사진을 올리면 템바보드를 붙인 모습을 만들어 드립니다.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%239A7A08'/%3E%3Cpath d='M8 7v18h17' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='square'/%3E%3C/svg%3E">
+<title>템바보드 미리보기 — 우리 벽에 붙여 보기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+</head>
+<body>
+<style>
+:root {
+  --ground: #F3F3EE;
+  --surface: #FFFFFF;
+  --sunken: #EAEAE2;
+  --ink: #1B1C17;
+  --muted: #6C6F63;
+  --line: #DCDCD2;
+  --line-strong: #C2C2B4;
+  --accent: #9A7A08;
+  --accent-ink: #6B5405;
+  --accent-soft: #F3E9C4;
+  --bad: #A5342A;
+  --bad-soft: #F6E3E0;
+
+  --sans: "IBM Plex Sans KR", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif;
+  --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #17180F; --surface: #202117; --sunken: #292A1F;
+    --ink: #EDEDE3; --muted: #9B9E8E; --line: #33352A; --line-strong: #4A4C3E;
+    --accent: #D9B444; --accent-ink: #EBCE7C; --accent-soft: #3B3520;
+    --bad: #E08479; --bad-soft: #3A241F;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #17180F; --surface: #202117; --sunken: #292A1F;
+  --ink: #EDEDE3; --muted: #9B9E8E; --line: #33352A; --line-strong: #4A4C3E;
+  --accent: #D9B444; --accent-ink: #EBCE7C; --accent-soft: #3B3520;
+  --bad: #E08479; --bad-soft: #3A241F;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--ground); color: var(--ink);
+  font-family: var(--sans); font-size: 15px; line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 860px; margin: 0 auto; padding: 40px 20px 72px; display: flex; flex-direction: column; gap: 28px; }
+
+header { display: flex; flex-direction: column; gap: 8px; }
+.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent-ink); }
+h1 { margin: 0; font-size: clamp(26px, 5vw, 36px); font-weight: 700; letter-spacing: -.02em; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 54ch; }
+
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.step-head { display: flex; align-items: baseline; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.step-no { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .1em; }
+.step-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.step-body { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+
+/* 모양 */
+.seg { display: flex; border: 1px solid var(--line-strong); border-radius: 4px; overflow: hidden; max-width: 320px; }
+.seg button {
+  flex: 1; font-family: var(--sans); font-size: 15px; padding: 10px 6px;
+  background: var(--surface); color: var(--muted); border: 0; cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--line-strong); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+
+/* 색상 */
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+.sw {
+  display: flex; flex-direction: column; gap: 6px; padding: 7px;
+  border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surface);
+  cursor: pointer; text-align: left; font-family: var(--sans); color: var(--ink);
+}
+.sw i { display: block; height: 46px; border-radius: 3px; border: 1px solid rgba(0,0,0,.14); }
+.sw span { font-size: 12px; line-height: 1.35; }
+.sw em { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--muted); font-style: normal; }
+.sw[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.sw:focus-visible, .seg button:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 업로드 */
+.drop {
+  border: 1.5px dashed var(--line-strong); border-radius: 6px; background: var(--sunken);
+  padding: 28px 18px; text-align: center; color: var(--muted); cursor: pointer;
+}
+.drop.over { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+.drop b { display: block; color: var(--ink); font-size: 15px; margin-bottom: 4px; }
+.drop input { display: none; }
+.shot { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+figure.shot-one { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+figure.shot-one img { width: 100%; border-radius: 5px; border: 1px solid var(--line); display: block; }
+figure.shot-one figcaption { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+/* 버튼 */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  font-family: var(--sans); font-size: 15px; font-weight: 500; padding: 12px 20px;
+  border-radius: 4px; border: 1px solid var(--line-strong); background: var(--surface);
+  color: var(--ink); cursor: pointer; text-decoration: none;
+}
+.btn.solid { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+.btn:disabled, .btn.is-disabled { opacity: .45; cursor: not-allowed; }
+.btn.solid:not(:disabled):hover { background: var(--accent-ink); border-color: var(--accent-ink); color: #fff; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+.msg { padding: 11px 14px; border-radius: 4px; font-size: 13.5px; }
+.msg.err { background: var(--bad-soft); color: var(--bad); }
+.msg.wait { background: var(--accent-soft); color: var(--accent-ink); }
+
+.note { font-size: 12.5px; color: var(--muted); }
+footer {
+  font-size: 12px; color: var(--muted);
+  border-top: 1px solid var(--line); padding-top: 16px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">템바보드 미리보기</div>
+    <h1>우리 집 벽에 붙여 보기</h1>
+    <p class="lede">색을 고르고 벽 사진을 올리면, 그 벽에 템바보드를 붙인 모습을 만들어 드립니다.</p>
+  </header>
+
+  <section class="step">
+    <div class="step-head"><span class="step-no">01</span><h2>모양 고르기</h2></div>
+    <div class="step-body">
+      <div class="seg" id="shapes"></div>
+      <p class="note" id="shape-note"></p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-no">02</span><h2>색 고르기</h2></div>
+    <div class="step-body">
+      <div class="swatches" id="colors"></div>
+      <p class="note">화면 색은 기기마다 달라 보입니다. 실제 색은 실물 샘플로 확인해 주세요.</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-no">03</span><h2>벽 사진 올리기</h2></div>
+    <div class="step-body">
+      <label class="drop" id="drop">
+        <b>사진을 여기에 끌어 놓거나 눌러서 고르세요</b>
+        붙일 벽이 정면으로 크게 나온 사진일수록 잘 나옵니다 · JPG / PNG
+        <input type="file" id="file" accept="image/jpeg,image/png,image/webp">
+      </label>
+      <div class="shot" id="shot" hidden></div>
+      <div class="actions">
+        <button class="btn solid" id="go" disabled>미리보기 만들기</button>
+        <a class="btn" id="download" hidden download="템바보드_미리보기.png">이미지 저장</a>
+        <a class="btn" id="talk" target="_blank" rel="noopener" hidden>이 색으로 문의하기</a>
+      </div>
+      <div id="msg"></div>
+    </div>
+  </section>
+
+  <footer>
+    <span>결과 이미지는 AI 가 만든 참고용 합성입니다. 실제 시공 결과·색감과 다를 수 있습니다.</span>
+    <span>올린 사진은 이미지를 만드는 데에만 쓰고 따로 보관하지 않습니다.</span>
+  </footer>
+</div>
+
+<script>
+/* ===== 색상·규격 데이터 (build.js 가 colors.js 등을 그대로 주입) ===== */
+/**
+ * 색상 목록. 스토어 제품 옵션 기준.
+ *
+ * 색상 이름은 두 모양 공통이지만 **선택 가능한 색이 모양마다 다르다.**
+ *   사각 14색 / 반달 6색
+ * codes 에 해당 모양의 제품 코드가 있으면 그 모양에서 주문 가능한 색이다.
+ *
+ * JA3054 = 진한블루 (확인 완료). 사각 옵션 목록의 JA3054-연한블루도 받은 그대로 둔다.
+ *
+ * 정렬 순서는 사각 옵션 목록 순서를 따른다.
+ */
+const COLORS = [
+  { name: '화이트',   codes: { square: 'JA3011', half: 'JA3011' } },
+  { name: '중간회색', codes: { square: 'JA3024' } },
+  { name: '연한회색', codes: { square: 'JA3048' } },
+  { name: '연한블루', codes: { square: 'JA3054' } },
+  { name: '진한블루', codes: { square: 'JA3050', half: 'JA3054' } }, // 반달은 JA3054
+  { name: '진한회색', codes: { square: 'JA2205' } },
+  { name: '카키',     codes: { square: 'JA2210', half: 'JA2210' } },
+  { name: '핑크',     codes: { square: 'JA3034' } },
+  { name: '연한오크', codes: { square: 'JA8401', half: 'JA8401' } },
+  { name: '중간오크', codes: { square: 'JA5021' } },
+  { name: '진한오크', codes: { square: 'JA705',  half: 'JA705'  } },
+  { name: '밝은오크', codes: { square: 'JA6W2' } },
+  { name: '연한티크', codes: { square: 'JA5033' } },
+  { name: '진한티크', codes: { square: 'JA0901', half: 'JA0901' } },
+];
+
+/** 출력 정렬 기준: COLORS 선언 순서 */
+const COLOR_ORDER = new Map(COLORS.map((c, i) => [c.name, i]));
+
+function findColor(name) {
+  return COLORS.find((c) => c.name === name) ?? null;
+}
+
+/** 해당 모양의 제품 코드. 그 모양에 없는 색이면 null. */
+function colorCode(name, shapeKey) {
+  return findColor(name)?.codes[shapeKey] ?? null;
+}
+
+/** 그 모양에서 주문 가능한 색인지 */
+function isColorAvailable(name, shapeKey) {
+  return colorCode(name, shapeKey) !== null;
+}
+
+/** 모양별 선택 가능한 색상 목록 */
+function colorsForShape(shapeKey) {
+  return COLORS.filter((c) => c.codes[shapeKey]);
+}
+
+/** 스토어 색상 옵션명 (예: JA3011-화이트) */
+function storeColorLabel(name, shapeKey) {
+  const code = colorCode(name, shapeKey);
+  return code ? `${code}-${name}` : name;
+}
+
+/**
+ * 제품 코드별 색. 도면에 실제 제품 색을 칠하는 데 쓴다.
+ * 색상 카드 이미지에서 눈으로 뽑은 대표색이라 실물과 차이가 있을 수 있다.
+ * 정확한 값이 나오면 여기만 고치면 된다.
+ */
+const CODE_SWATCH = {
+  JA0901: '#8F6B4E', // 진한티크
+  JA5033: '#C9A87C', // 연한티크
+  JA6W2:  '#E3C98F', // 밝은오크
+  JA705:  '#D9B682', // 진한오크
+  JA5021: '#D3C2A8', // 중간오크
+  JA8401: '#DACEBE', // 연한오크
+  JA3034: '#D5A9A5', // 핑크
+  JA2210: '#A19A85', // 카키
+  JA2205: '#575B62', // 진한회색
+  JA3050: '#5C6376', // 진한블루(사각)
+  JA3054: '#4E5578', // 진한블루(반달) / 사각 옵션명은 연한블루
+  JA3048: '#8C8F93', // 연한회색
+  JA3024: '#9C9EA0', // 중간회색
+  JA3011: '#ECEDEE', // 화이트
+};
+
+/** 해당 모양에서 그 색이 실제로 어떤 색인지 (#rrggbb). 모르면 null */
+function swatchOf(name, shapeKey) {
+  const code = colorCode(name, shapeKey);
+  return code ? (CODE_SWATCH[code] ?? null) : null;
+}
+
+/**
+ * 스토어(네이버) 옵션명.
+ * 주문 요약을 주문서와 한 줄씩 대조할 수 있게, 출력 문구를 스토어 옵션 그룹명과 맞춘다.
+ * 옵션명이 바뀌면 계산 로직은 건드리지 말고 이 파일만 고친다.
+ * 줄 순서도 스토어 옵션 순서를 따른다.
+ */
+const STORE_OPTIONS = {
+  shape: '템바보드 타입',
+  color: '색상',
+  /**
+   * 재단 횟수. 수량 = 총 재단 횟수.
+   * '재단 필요해요' 는 추가옵션 그룹명이고 실제로 고르는 항목은 그 안의
+   * '톡톡으로 말씀주세요' 다. 어느 걸 눌러야 하는지 헷갈려서 둘 다 적는다.
+   */
+  cutting: '재단 필요해요 > 톡톡으로 말씀주세요',
+  /** 마감몰딩은 추가상품. 규격별로 옵션이 따로 있다. */
+  moldingByLength: {
+    2440: '마감몰딩 2440mm 기준',
+    1200: '마감몰딩 1200mm 기준',
+  },
+  /** 100mm 낱개 템바. 색상은 원장 색상을 그대로 따라간다. */
+  stripByShape: {
+    half: '반달템바 (100x2440x9T)',
+    square: '사각템바 (100x2440x12T)',
+  },
+};
+
+/**
+ * 관리자페이지 주문요약의 상품명·자재 규격.
+ * 상품은 자재 폭으로 갈린다. 원장 _30cm / 낱개 _10cm.
+ *
+ * 반달 원장의 규격 폭은 295 다. 관리자페이지 기록이 `295*2440*9T` 로 나온다.
+ * 다르면 이 표만 고친다.
+ */
+const ADMIN_PRODUCTS = {
+  square: { name: '붙이는 사각템바 12T', thickness: '12T', boardWidth: 300 },
+  half:   { name: '붙이는 반달템바 9T',  thickness: '9T',  boardWidth: 295 },
+};
+
+/** 상품명 뒤에 붙는 폭 구분 */
+const ADMIN_SIZE_SUFFIX = { board: '_30cm', strip: '_10cm' };
+
+/**
+ * 마감몰딩. 모양과 무관하게 규격이 하나뿐이라 두께도 12T 로 고정이다.
+ * 우리가 자르지 않으므로 재단내역 칸 없이 4칸만 낸다.
+ */
+const ADMIN_MOLDING = { name: '붙이는 마감몰딩', width: 15, thickness: '12T' };
+
+/**
+ * 네이버 톡톡 상담 주소. 예: 'https://talk.naver.com/ct/xxxxxx'
+ * 톡톡은 링크로 메시지를 미리 채우는 규격이 없다. 그래서 '톡톡으로 보내기' 버튼은
+ * 지시서를 복사한 뒤 톡톡 창을 열어 주고, 붙여넣기는 사람이 한다.
+ * 비워 두면 버튼이 복사만 하고 주소가 없다고 알려 준다.
+ */
+const TALK_URL = 'https://talk.naver.com/w48val'; // 아르빙
+
+/**
+ * 템바보드 재단 계산 로직.
+ * UI 코드 없음. 순수 계산 + 출력 텍스트 포맷만 담당한다.
+ * 규칙 출처: CLAUDE.md 2장(계산 로직), 3장(출력 형식).
+ */
+
+
+/** 모양별 원장 규격. 유효폭 = 실측폭(옆판 겹침 손실 없음). */
+const SHAPES = {
+  half:   { key: 'half',   label: '반달', effectiveWidth: 295, sheetLength: 2440 },
+  square: { key: 'square', label: '사각', effectiveWidth: 300, sheetLength: 2440 },
+};
+
+/** 예전 표기(원형)로 들어온 입력도 계속 받는다. */
+const SHAPE_ALIASES = { round: 'half', 원형: 'half' };
+
+/**
+ * 톱날 손실(커프). 조각과 조각 사이에만 발생.
+ *
+ * 0 이다. 예전에 20 을 썼는데 톱날이 먹는 길이는 조각마다 빠지는 재단손실
+ * (CUT_LOSS 5)로 이미 세고 있어서 이중 계산이었다.
+ * 커프를 따로 빼야 하는 톱으로 바뀌면 이 값만 올린다.
+ */
+const KERF = 0;
+/** 끝단 정리 선택 시 원장에서 빠지는 길이. */
+const TRIM_LOSS = 20;
+/** 상단 마감몰딩 1면 차감. */
+const MOLDING_DEDUCTION = 15;
+/** 재단 손실. 조각을 자를 때마다 세로가 이만큼 줄어든다. 조각 1개당 1회. */
+const CUT_LOSS = 5;
+/** 낱개 템바 폭 (100 × 2440). 원장으로 못 채우는 자투리 폭을 이걸로 메운다. */
+const STRIP_WIDTH = 100;
+/** 마감몰딩 규격 (15 × L × 12t). 긴 것부터. */
+const MOLDING_LENGTHS = [2440, 1200];
+const MOLDING_TYPE = '민자';
+
+/** 자재 종류: 원장(유효폭) / 낱개 템바(100폭) */
+const STOCK_BOARD = 'board';
+const STOCK_STRIP = 'strip';
+
+class CuttingError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'CuttingError';
+    this.code = code;
+  }
+}
+
+function resolveShape(shape) {
+  if (typeof shape === 'string') {
+    if (SHAPES[shape]) return SHAPES[shape];
+    if (SHAPE_ALIASES[shape]) return SHAPES[SHAPE_ALIASES[shape]];
+    const byLabel = Object.values(SHAPES).find((s) => s.label === shape);
+    if (byLabel) return byLabel;
+  }
+  throw new CuttingError('INVALID_SHAPE', `알 수 없는 모양: ${shape}`);
+}
+
+// --- 2.2 완성 치수 / 재단 길이 (세로) ---------------------------------------
+// 몰딩은 상단 한 면에만 붙으므로 세로 차감은 15mm 1회.
+// 완성 치수 = 고객에게 나가는 길이.
+function finishedLength(height, useMolding) {
+  return useMolding ? height - MOLDING_DEDUCTION : height;
+}
+
+// 재단하면 조각 세로가 5mm 줄어든다. 완성 치수를 맞추려면 그만큼 크게 잘라야 하므로
+// 원장에서 실제로 잘라내는 길이(= 원장 점유 길이)는 완성 치수 + 5.
+// 자재 소요량·재단 횟수·자투리는 전부 이 길이로 센다.
+// 다만 화면과 지시서에 적는 숫자는 완성 치수다 (formatCuttingSheet 참고).
+function cutLength(height, useMolding) {
+  return finishedLength(height, useMolding) + CUT_LOSS;
+}
+
+// --- 2.2b 세로 나누기 -------------------------------------------------------
+// 세로가 원장 유효길이를 넘으면 한 장으로 못 뽑는다. 길이를 나눠서 이어 붙인다.
+// 조각 하나가 가질 수 있는 최대 완성 길이 = 유효길이 - 재단손실.
+// 이음을 최소로 하려고 앞 조각부터 최대로 채우고 마지막 조각이 나머지를 갖는다.
+function lengthPlan(finished, usableLength) {
+  const max = usableLength - CUT_LOSS;
+  const count = Math.max(1, Math.ceil(finished / max));
+  const segments = [];
+  let left = finished;
+  for (let i = 0; i < count; i++) {
+    const seg = Math.min(max, left);
+    segments.push(seg);
+    left -= seg;
+  }
+  return segments;
+}
+
+// --- 2.3 가로 채우기 --------------------------------------------------------
+// 원장(유효폭)으로 채울 수 있는 만큼 채우고, 남는 폭은 100mm 낱개 템바로 메운다.
+// 예) 사각 400 → 300 × 1장 + 100 × 1장
+//
+// 단, 낱개로 메우는 폭이 원장 폭 이상이면 원장 1장으로 대신한다.
+// 자재량은 같거나 적으면서 개수는 적기 때문. (사각 남는 폭 250 → 낱개 3개 300 = 원장 1장)
+// 그래서 낱개는 최대 (유효폭 - 100) 폭까지만 쓴다. 사각 200 / 반달 195.
+//
+// ⚠️ 폭 재단은 하지 않는다. 세로만 자를 수 있고 가로는 규격(유효폭 / 100) 그대로 나간다.
+// 그래서 시공 폭은 규격 합계로 고정되고, 요청 가로보다 넘치는 만큼이 overhang 이다.
+// 모자라면 벽이 비므로 항상 덮는 쪽(올림)으로 맞춘다. 넘치는 폭은 현장에서 처리한다.
+function widthPlan(width, effectiveWidth) {
+  let boards = Math.floor(width / effectiveWidth);
+  const rest = width - boards * effectiveWidth;
+  let strips = rest > 0 ? Math.ceil(rest / STRIP_WIDTH) : 0;
+
+  if (strips * STRIP_WIDTH >= effectiveWidth) {
+    boards += 1;
+    strips = 0;
+  }
+
+  const covered = boards * effectiveWidth + strips * STRIP_WIDTH;
+  return {
+    boards,
+    strips,
+    /** 규격대로 깔았을 때 실제 시공 폭 */
+    covered,
+    /** 요청 가로보다 넘치는 폭. 우리가 자르지 않으므로 자투리가 아니다 */
+    overhang: covered - width,
+  };
+}
+
+/** 재단 조각 총 개수 (원장 조각 + 낱개 조각) */
+function pieceCount(width, effectiveWidth) {
+  const plan = widthPlan(width, effectiveWidth);
+  return plan.boards + plan.strips;
+}
+
+// --- 2.4 원장 유효 길이 -----------------------------------------------------
+function usableSheetLength(shapeSpec, trimEnds) {
+  return shapeSpec.sheetLength - (trimEnds ? TRIM_LOSS : 0);
+}
+
+// --- 2.5 원장 1개당 뽑을 수 있는 개수 ---------------------------------------
+// n × L + (n-1) × KERF ≤ 유효길이  →  n = floor((유효길이 + KERF) / (L + KERF))
+function piecesPerSheet(length, usableLength) {
+  if (length > usableLength) return 0;
+  return Math.floor((usableLength + KERF) / (length + KERF));
+}
+
+// --- 2.6 소요 원장 수 -------------------------------------------------------
+function sheetsNeeded(pieces, perSheet) {
+  if (perSheet <= 0) throw new CuttingError('NO_FIT', '원장에서 뽑을 수 없는 길이입니다.');
+  return Math.ceil(pieces / perSheet);
+}
+
+// --- 2.7 재단 횟수 (스토어 '재단 필요해요' 수량) ----------------------------
+// 원장 길이를 재단 길이로 나눈 횟수 × 가로 장수.
+// 예) 2440 / 800 → 3회, 폭 1200(사각 300) → 4장 → 3 × 4 = 12회
+function cutCount(usableLength, length, pieces) {
+  return Math.floor(usableLength / length) * pieces;
+}
+
+// --- 2.8 몰딩 수량 ----------------------------------------------------------
+// 필요 길이 = 고객 입력 가로. 2440/1200 조합으로 덮는다.
+// 1순위 총 개수 최소, 2순위 자투리 최소. 이음부 커프 손실은 계산하지 않는다.
+function moldingPlan(width) {
+  const [long, short] = MOLDING_LENGTHS;
+  let best = null;
+  for (let a = 0; a <= Math.ceil(width / long); a++) {
+    const rest = width - a * long;
+    const b = rest > 0 ? Math.ceil(rest / short) : 0;
+    const total = a * long + b * short;
+    const cand = { count: a + b, leftover: total - width, total, pieces: { [long]: a, [short]: b } };
+    if (!best || cand.count < best.count || (cand.count === best.count && cand.leftover < best.leftover)) {
+      best = cand;
+    }
+  }
+  const items = MOLDING_LENGTHS
+    .filter((len) => best.pieces[len] > 0)
+    .map((len) => ({ length: len, count: best.pieces[len] }));
+  return { items, count: best.count, total: best.total, leftover: best.leftover };
+}
+
+// --- 자투리 -----------------------------------------------------------------
+// (1) 세로 자르고 남은 부분: 자재 끝에 남는 토막.
+//     마지막 자재는 조각 수가 모자랄 수 있으므로 따로 계산한다.
+//     커프는 조각과 조각 사이에만 계산한다(2.5 모델). 남는 토막을 톱으로 떼어내는
+//     마지막 1컷(20mm)은 빼지 않은 값이다.
+function sheetTails(pieces, perSheet, usableLength, length) {
+  const sheets = sheetsNeeded(pieces, perSheet);
+  const lastCount = pieces - (sheets - 1) * perSheet;
+  const tailOf = (n) => usableLength - (n * length + (n - 1) * KERF);
+
+  const map = new Map();
+  const add = (tail, count) => {
+    if (tail > 0 && count > 0) map.set(tail, (map.get(tail) ?? 0) + count);
+  };
+  add(tailOf(perSheet), sheets - 1); // 가득 채운 자재
+  add(tailOf(lastCount), 1);         // 마지막 자재
+
+  return [...map.entries()]
+    .map(([tail, count]) => ({ length: tail, count }))
+    .sort((a, b) => b.length - a.length);
+}
+
+// (2) 폭 재단은 하지 않으므로 가로 자투리는 나오지 않는다. widthPlan().overhang 참조.
+// (3) 몰딩 자투리는 moldingPlan().leftover 참조.
+
+// --- 입력 검증 (CLAUDE.md 5-(4)) --------------------------------------------
+function validateItem(input) {
+  const errors = [];
+  const { width, height, useMolding = false, trimEnds = false } = input;
+
+  let shapeSpec = null;
+  try {
+    shapeSpec = resolveShape(input.shape);
+  } catch (e) {
+    errors.push({ code: e.code, message: e.message });
+  }
+
+  if (!findColor(input.color)) {
+    errors.push({ code: 'INVALID_COLOR', message: `알 수 없는 색상: ${input.color}` });
+  } else if (shapeSpec && !isColorAvailable(input.color, shapeSpec.key)) {
+    errors.push({
+      code: 'COLOR_NOT_IN_SHAPE',
+      message: `${shapeSpec.label}에는 ${input.color}이(가) 없습니다.`,
+    });
+  }
+  if (!Number.isFinite(width) || width <= 0) {
+    errors.push({ code: 'INVALID_WIDTH', message: '가로는 0보다 큰 값이어야 합니다.' });
+  }
+  if (!Number.isFinite(height) || height <= 0) {
+    errors.push({ code: 'INVALID_HEIGHT', message: '세로는 0보다 큰 값이어야 합니다.' });
+  } else if (shapeSpec) {
+    const finished = finishedLength(height, useMolding);
+    if (finished <= 0) {
+      errors.push({
+        code: 'CUT_LENGTH_TOO_SMALL',
+        message: `몰딩 ${MOLDING_DEDUCTION}mm 차감 후 완성 치수가 0 이하입니다. (세로 ${height})`,
+      });
+    }
+    // 세로 상한은 두지 않는다. 유효길이를 넘으면 나눠서 이어 붙인다(lengthPlan).
+  }
+  return errors;
+}
+
+/** 항목 1건 계산. 검증 실패 시 CuttingError 를 던진다. */
+function calculateItem(input) {
+  const errors = validateItem(input);
+  if (errors.length > 0) {
+    const err = new CuttingError(errors[0].code, errors[0].message);
+    err.errors = errors;
+    throw err;
+  }
+
+  const shapeSpec = resolveShape(input.shape);
+  const { width, height, useMolding = false, trimEnds = false } = input;
+
+  const finished = finishedLength(height, useMolding);
+  const usableLength = usableSheetLength(shapeSpec, trimEnds);
+  const plan = widthPlan(width, shapeSpec.effectiveWidth);
+  const pieces = plan.boards + plan.strips;
+
+  // 세로가 유효길이를 넘으면 여러 조각으로 나눠 이어 붙인다.
+  const segments = lengthPlan(finished, usableLength).map((segFinished) => {
+    const length = segFinished + CUT_LOSS;
+    const perSheet = piecesPerSheet(length, usableLength);
+    // 원장과 낱개는 자재가 다르므로 소요 수량도 따로 센다.
+    const stocks = [
+      { kind: STOCK_BOARD, stockWidth: shapeSpec.effectiveWidth, pieces: plan.boards },
+      { kind: STOCK_STRIP, stockWidth: STRIP_WIDTH, pieces: plan.strips },
+    ]
+      .filter((s) => s.pieces > 0)
+      .map((s) => ({ ...s, bars: sheetsNeeded(s.pieces, perSheet) }));
+
+    return {
+      finishedLength: segFinished,
+      cutLength: length,
+      piecesPerSheet: perSheet,
+      pieces,
+      stocks,
+    };
+  });
+
+  const barsOf = (kind) => segments.reduce(
+    (n, seg) => n + seg.stocks.filter((s) => s.kind === kind).reduce((m, s) => m + s.bars, 0), 0);
+
+  return {
+    input: { ...input, useMolding, trimEnds },
+    shape: shapeSpec,
+    color: findColor(input.color),
+    width,
+    height,
+    finishedLength: finished,
+    /** 첫 조각 기준. 나눠진 경우 전체는 segments 참조. */
+    cutLength: segments[0].cutLength,
+    segments,
+    /** 이음 개수 (0이면 한 장으로 나옴) */
+    joints: segments.length - 1,
+    widthPlan: plan,
+    pieces,
+    usableLength,
+    piecesPerSheet: segments[0].piecesPerSheet,
+    sheets: barsOf(STOCK_BOARD),
+    strips: barsOf(STOCK_STRIP),
+    cutCount: segments.reduce((n, seg) => n + cutCount(usableLength, seg.cutLength, seg.pieces), 0),
+    molding: useMolding ? moldingPlan(width) : null,
+  };
+}
+
+// --- 3. 합산 / 정렬 ---------------------------------------------------------
+// 동일 사양(모양 + 색상 + 재단길이 + 자재)은 합산하여 한 줄로 출력. 정렬은 색상별.
+function colorRank(name) {
+  return COLOR_ORDER.has(name) ? COLOR_ORDER.get(name) : Number.MAX_SAFE_INTEGER;
+}
+
+function bySpec(a, b) {
+  return (
+    colorRank(a.color) - colorRank(b.color) ||
+    (a.color ?? '').localeCompare(b.color ?? '') ||
+    (a.shape ?? '').localeCompare(b.shape ?? '') ||
+    (a.kind === STOCK_STRIP ? 1 : 0) - (b.kind === STOCK_STRIP ? 1 : 0) ||
+    (a.cutLength ?? 0) - (b.cutLength ?? 0) ||
+    (a.length ?? 0) - (b.length ?? 0)
+  );
+}
+
+function calculate(inputs) {
+  const items = inputs.map(calculateItem);
+
+  // 원장당 개수는 끝단정리 여부에 따라 달라지므로 소요 수량 계산은 trimEnds 까지 묶는다.
+  const buckets = new Map();
+  for (const item of items) {
+    for (const seg of item.segments) {
+      for (const stock of seg.stocks) {
+        const key = [item.shape.label, item.color.name, seg.cutLength, item.input.trimEnds, stock.kind].join('|');
+        const bucket = buckets.get(key) ?? {
+          shape: item.shape.label,
+          shapeKey: item.shape.key,
+          color: item.color.name,
+          kind: stock.kind,
+          stockWidth: stock.stockWidth,
+          cutLength: seg.cutLength,
+          finishedLength: seg.finishedLength,
+          piecesPerSheet: seg.piecesPerSheet,
+          usableLength: item.usableLength,
+          sheetLength: item.shape.sheetLength,
+          trimEnds: item.input.trimEnds,
+          pieces: 0,
+        };
+        bucket.pieces += stock.pieces;
+        buckets.set(key, bucket);
+      }
+    }
+  }
+  for (const bucket of buckets.values()) {
+    bucket.bars = sheetsNeeded(bucket.pieces, bucket.piecesPerSheet);
+    // 자투리는 합산된 조각 수 기준으로 다시 계산한다.
+    // (2건을 한 자재에 몰아 뽑으면 자투리도 줄어들기 때문)
+    bucket.sheetTails = sheetTails(bucket.pieces, bucket.piecesPerSheet, bucket.usableLength, bucket.cutLength);
+  }
+
+  // 재단 지시서: 모양 + 색상 + 재단길이 + 자재
+  const cutMap = new Map();
+  for (const b of buckets.values()) {
+    const key = [b.shape, b.color, b.cutLength, b.kind].join('|');
+    const row = cutMap.get(key) ?? {
+      shape: b.shape, shapeKey: b.shapeKey, color: b.color, kind: b.kind, stockWidth: b.stockWidth,
+      cutLength: b.cutLength, finishedLength: b.finishedLength, pieces: 0,
+    };
+    row.pieces += b.pieces;
+    cutMap.set(key, row);
+  }
+  const cuts = [...cutMap.values()].sort(bySpec);
+
+  // 주문 수량: 모양 + 색상 + 자재
+  const stockMap = new Map();
+  for (const b of buckets.values()) {
+    const key = [b.shape, b.color, b.kind].join('|');
+    const row = stockMap.get(key) ?? {
+      shape: b.shape, shapeKey: b.shapeKey, color: b.color, kind: b.kind,
+      stockWidth: b.stockWidth, sheetLength: b.sheetLength, bars: 0,
+    };
+    row.bars += b.bars;
+    stockMap.set(key, row);
+  }
+  const stocks = [...stockMap.values()].sort(bySpec);
+  const boards = stocks
+    .filter((s) => s.kind === STOCK_BOARD)
+    .map((s) => ({ shape: s.shape, shapeKey: s.shapeKey, color: s.color, sheets: s.bars }));
+  const stripOrders = stocks.filter((s) => s.kind === STOCK_STRIP);
+
+  // 몰딩: 색상 + 규격. 색상은 보드 색상을 따라간다.
+  const moldingMap = new Map();
+  for (const item of items) {
+    if (!item.molding) continue;
+    for (const m of item.molding.items) {
+      const key = `${item.color.name}|${m.length}`;
+      // 몰딩은 규격이 하나뿐이라 색상 + 길이로만 묶는다. 색상 코드를 뽑을 모양은
+      // 이 몰딩을 부른 첫 재단면의 것을 쓴다.
+      const row = moldingMap.get(key)
+        ?? { color: item.color.name, shapeKey: item.shape.key, length: m.length, count: 0 };
+      row.count += m.count;
+      moldingMap.set(key, row);
+    }
+  }
+  const moldings = [...moldingMap.values()].sort(bySpec);
+
+  // 자투리: 재단 지시서와 같은 단위로 묶는다.
+  const leftoverMap = new Map();
+  for (const b of buckets.values()) {
+    const key = [b.shape, b.color, b.cutLength, b.kind].join('|');
+    const row = leftoverMap.get(key) ?? {
+      shape: b.shape, shapeKey: b.shapeKey, color: b.color, kind: b.kind, stockWidth: b.stockWidth,
+      cutLength: b.cutLength, sheetTails: [],
+    };
+    row.sheetTails.push(...b.sheetTails);
+    leftoverMap.set(key, row);
+  }
+  const leftovers = [...leftoverMap.values()]
+    .map((row) => ({
+      ...row,
+      sheetTails: [...row.sheetTails
+        .reduce((m, t) => m.set(t.length, (m.get(t.length) ?? 0) + t.count), new Map())]
+        .map(([length, count]) => ({ length, count }))
+        .sort((a, b) => b.length - a.length),
+    }))
+    .sort(bySpec);
+
+  // 몰딩 자투리. 따로 떨어지는 조각이므로 길이별로 센다(합산하지 않는다).
+  const moldingLeftoverMap = new Map();
+  for (const item of items) {
+    if (!item.molding) continue;
+    const key = [item.color.name, item.shape.key, item.molding.leftover].join('|');
+    const row = moldingLeftoverMap.get(key) ??
+      { color: item.color.name, shapeKey: item.shape.key, leftover: item.molding.leftover, count: 0 };
+    row.count += 1;
+    moldingLeftoverMap.set(key, row);
+  }
+  const moldingLeftovers = [...moldingLeftoverMap.values()].sort(bySpec);
+
+  return {
+    items,
+    boards,
+    stripOrders,
+    /** 모양 + 색상 + 자재 단위. 관리자 주문요약이 이 단위로 한 줄씩 낸다 */
+    stocks,
+    cuts,
+    moldings,
+    leftovers,
+    moldingLeftovers,
+    cutCount: items.reduce((n, it) => n + it.cutCount, 0),
+    joints: items.reduce((n, it) => n + it.joints, 0),
+    barGroups: barGroupsOf([...buckets.values()].sort(bySpec)),
+    walls: items.map(wallLayout),
+  };
+}
+
+// --- 4. 도면 데이터 ---------------------------------------------------------
+// 숫자와 그림이 어긋나지 않도록, 계산에 쓴 버킷에서 그대로 뽑는다.
+
+/**
+ * 자재 1개(원장 또는 낱개)에 조각이 어떻게 들어가는지.
+ * 같은 모양의 자재는 묶어서 bars 개수로 센다.
+ */
+function barGroupsOf(buckets) {
+  const groups = new Map();
+  for (const b of buckets) {
+    let left = b.pieces;
+    while (left > 0) {
+      const count = Math.min(b.piecesPerSheet, left);
+      const used = count * b.cutLength + (count - 1) * KERF;
+      const key = [b.shape, b.color, b.kind, b.cutLength, count, b.trimEnds].join('|');
+      const group = groups.get(key) ?? {
+        shape: b.shape,
+        shapeKey: b.shapeKey,
+        color: b.color,
+        kind: b.kind,
+        stockWidth: b.stockWidth,
+        sheetLength: b.sheetLength,
+        usableLength: b.usableLength,
+        trimEnds: b.trimEnds,
+        cutLength: b.cutLength,
+        /** 도면에 적는 값. 재단 지시서와 같게 완성 치수를 쓴다. */
+        finishedLength: b.finishedLength,
+        /** 자재 1개에 들어가는 조각 수 */
+        count,
+        used,
+        tail: b.usableLength - used,
+        /** 이렇게 생긴 자재가 몇 개인지 */
+        bars: 0,
+      };
+      group.bars += 1;
+      groups.set(key, group);
+      left -= count;
+    }
+  }
+  return [...groups.values()];
+}
+
+/**
+ * 벽면 배치도. 가로는 자재 열, 세로는 조각(이음)으로 나뉜다.
+ * 폭 재단을 하지 않으므로 열은 모두 규격 폭 그대로다.
+ * 그래서 시공 폭(covered)이 요청 가로보다 넓을 수 있고, 그 차이가 overhang 이다.
+ */
+function wallLayout(item) {
+  const { boards, strips, covered, overhang } = item.widthPlan;
+  const columns = [
+    ...Array.from({ length: boards }, () => ({ kind: STOCK_BOARD, width: item.shape.effectiveWidth })),
+    ...Array.from({ length: strips }, () => ({ kind: STOCK_STRIP, width: STRIP_WIDTH })),
+  ];
+
+  const rows = [];
+  if (item.input.useMolding) rows.push({ kind: 'molding', length: MOLDING_DEDUCTION });
+  for (const seg of item.segments) {
+    rows.push({ kind: 'piece', length: seg.finishedLength, cutLength: seg.cutLength });
+  }
+
+  return { width: item.width, covered, overhang, height: item.height, columns, rows };
+}
+
+/**
+ * 자투리 목록. 재단이 끝나고 손에 남는 조각을 한 곳에 모은다.
+ * 같은 크기·같은 출처는 묶어서 센다.
+ */
+function leftoverPieces(result) {
+  const map = new Map();
+  const add = (p) => {
+    const key = [p.shape, p.color, p.width, p.length, p.from].join('|');
+    const row = map.get(key) ?? { ...p, count: 0 };
+    row.count += p.count;
+    map.set(key, row);
+  };
+
+  for (const row of result.leftovers) {
+    for (const t of row.sheetTails) {
+      add({ shape: row.shape, shapeKey: row.shapeKey, color: row.color, kind: row.kind,
+        width: row.stockWidth, length: t.length, count: t.count, from: 'cut' });
+    }
+  }
+  for (const m of result.moldingLeftovers) {
+    if (m.leftover <= 0) continue;
+    add({ shape: '마감몰딩', shapeKey: m.shapeKey, color: m.color, kind: 'molding',
+      width: 15, length: m.leftover, count: m.count, from: 'molding' });
+  }
+
+  return [...map.values()].sort((a, b) => b.width * b.length - a.width * a.length);
+}
+
+const LEFTOVER_SOURCE = {
+  cut: '세로 자르고 남은 부분',
+  molding: '마감몰딩 남은 길이',
+};
+
+// --- 3. 출력 형식 -----------------------------------------------------------
+
+/** 같은 스토어 옵션에 색이 둘 이상 섞이면 괄호로 내역을 덧붙인다. */
+function colorNote(rows, countOf) {
+  return rows.length > 1 ? ` (${rows.map((r) => `${r.color} ${countOf(r)}`).join(', ')})` : '';
+}
+
+/**
+ * 주문 요약. 스토어 옵션명 그대로 적어서 주문서와 한 줄씩 대조할 수 있게 한다.
+ * 줄 순서도 스토어 옵션 순서를 따른다.
+ */
+function formatOrderSummary(result) {
+  const lines = result.boards.map((b) =>
+    `${STORE_OPTIONS.shape} / ${b.shape}, ${STORE_OPTIONS.color} / ` +
+    `${storeColorLabel(b.color, b.shapeKey)} : ${b.sheets}개`);
+
+  if (result.cutCount > 0) {
+    lines.push(`${STORE_OPTIONS.cutting} : ${result.cutCount}개`);
+  }
+
+  for (const length of MOLDING_LENGTHS) {
+    const rows = result.moldings.filter((m) => m.length === length);
+    if (rows.length === 0) continue;
+    const total = rows.reduce((sum, m) => sum + m.count, 0);
+    lines.push(`${STORE_OPTIONS.moldingByLength[length]} : ${total}개${colorNote(rows, (r) => r.count)}`);
+  }
+
+  for (const shapeKey of Object.keys(SHAPES)) {
+    const rows = result.stripOrders.filter((s) => s.shapeKey === shapeKey);
+    if (rows.length === 0) continue;
+    const total = rows.reduce((sum, s) => sum + s.bars, 0);
+    lines.push(`${STORE_OPTIONS.stripByShape[shapeKey]} : ${total}개${colorNote(rows, (r) => r.bars)}`);
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * 관리자페이지 주문요약. 한 줄이 자재 한 종류다.
+ *
+ *   상품명 \t 자재규격 \t 색상 \t 수량(자재 개수) \t 재단내역
+ *   붙이는 사각템바 12T_30cm \t 300*2440*12T \t JA8401-연한오크 \t 3 \t 300*1170*12T 6조각
+ *
+ * 탭으로 나눠서 표에 그대로 붙여넣을 수 있게 한다. 색상별로 원장 → 낱개 → 몰딩 순.
+ * 재단내역의 세로 숫자는 재단 지시서와 같게 **완성 치수**다.
+ * 폭은 자재 규격 그대로다. 폭 재단을 하지 않으므로 좁혀 적는 줄은 나오지 않는다.
+ * 마감몰딩은 자르지 않으므로 재단내역 칸 없이 4칸만 낸다.
+ */
+function formatAdminOrder(result) {
+  const rows = [];
+
+  for (const s of result.stocks) {
+    const product = ADMIN_PRODUCTS[s.shapeKey];
+    const width = s.kind === STOCK_STRIP ? STRIP_WIDTH : product.boardWidth;
+    const spec = (length) => `${width}*${length}*${product.thickness}`;
+    const detail = result.cuts
+      .filter((c) => c.shapeKey === s.shapeKey && c.color === s.color && c.kind === s.kind)
+      .map((c) => `${spec(c.finishedLength)} ${c.pieces}조각`)
+      .join(' / ');
+
+    rows.push({
+      color: s.color,
+      kindRank: s.kind === STOCK_STRIP ? 1 : 0,
+      shape: s.shape,
+      sub: 0,
+      cells: [
+        product.name + ADMIN_SIZE_SUFFIX[s.kind],
+        spec(s.sheetLength),
+        storeColorLabel(s.color, s.shapeKey),
+        s.bars,
+        detail,
+      ],
+    });
+  }
+
+  // 몰딩은 우리가 자르지 않으므로 재단내역 칸 없이 4칸이다.
+  for (const m of result.moldings) {
+    rows.push({
+      color: m.color,
+      kindRank: 2,
+      shape: '',
+      sub: -m.length, // 긴 규격부터
+      cells: [
+        ADMIN_MOLDING.name,
+        `${ADMIN_MOLDING.width}*${m.length}*${ADMIN_MOLDING.thickness}`,
+        storeColorLabel(m.color, m.shapeKey),
+        m.count,
+      ],
+    });
+  }
+
+  return rows
+    .sort((a, b) => (
+      colorRank(a.color) - colorRank(b.color) ||
+      a.kindRank - b.kindRank ||
+      a.shape.localeCompare(b.shape) ||
+      a.sub - b.sub
+    ))
+    .map((r) => r.cells.join('\t'))
+    .join('\n');
+}
+
+/**
+ * 재단 지시서. 작업장용이라 색상 이름만 쓴다. 낱개는 100폭으로 표시.
+ * 적는 숫자는 **완성 치수**다. 재단손실 5mm 는 자르는 쪽이 감안한다.
+ * (읽는 사람이 주문한 치수를 그대로 보게 하려는 것. 원장 점유 길이는 cutLength)
+ */
+function formatCuttingSheet(result) {
+  return result.cuts
+    .map((c) => {
+      const stock = c.kind === STOCK_STRIP ? ` ${STRIP_WIDTH}폭` : '';
+      return `${c.shape}-${c.color}${stock} : ${c.finishedLength} - ${c.pieces}조각`;
+    })
+    .join('\n');
+}
+
+const NO_LEFTOVER_TEXT = '자투리 없음';
+
+/**
+ * 자투리 내역.
+ * 작업장 용어(원장/자투리) 대신 실제 조각 크기를 가로 X 세로로 적는다.
+ */
+function formatLeftovers(result) {
+  const lines = [];
+  for (const row of result.leftovers) {
+    for (const t of row.sheetTails) {
+      lines.push(`${row.shape}-${row.color} : 가로 ${row.stockWidth} X 세로 ${t.length}, ${t.count}개 (세로 자르고 남은 부분)`);
+    }
+  }
+  for (const m of result.moldingLeftovers) {
+    if (m.leftover <= 0) {
+      lines.push(`마감몰딩-${m.color} : 남는 길이 없음`);
+    } else {
+      lines.push(`마감몰딩-${m.color} : ${m.leftover} 남음` + (m.count > 1 ? `, ${m.count}개` : ''));
+    }
+  }
+  return lines.join('\n');
+}
+
+/** 재단 지시서 + 자투리 (클립보드 복사용 전체 텍스트) */
+function formatCuttingSheetWithLeftovers(result) {
+  const leftovers = formatLeftovers(result) || NO_LEFTOVER_TEXT;
+  return `${formatCuttingSheet(result)}\n\n--- 자투리 ---\n${leftovers}`;
+}
+
+/**
+ * 스토어 판매가. 계산 로직과 분리한다. 가격이 바뀌면 이 파일만 고친다.
+ * 단가 미확인 항목은 null 로 두고, 견적에서 '단가 미정'으로 표시하며 합계에서 뺀다.
+ */
+
+
+
+const PRICES = {
+  /** 원장 (300 규격) */
+  board: {
+    half: { default: 40500 },              // 300 반달템바. 색상 무관
+    square: { default: 45000 },            // 300 사각템바. 색상 무관
+  },
+  /** 100mm 낱개 템바 */
+  strip: {
+    square: 16000,
+    half: 16000,
+  },
+  /** 마감몰딩 */
+  moldingByLength: {
+    2440: 8000,
+    1200: 4000,
+  },
+  /** 재단 1회당 단가 */
+  cutting: 500,
+};
+
+function boardPrice(shapeKey, colorName) {
+  const table = PRICES.board[shapeKey];
+  if (!table) return null;
+  return table.byColor?.[colorName] ?? table.default ?? null;
+}
+
+const stripPrice = (shapeKey) => PRICES.strip[shapeKey] ?? null;
+const moldingPrice = (length) => PRICES.moldingByLength[length] ?? null;
+const cuttingPrice = () => PRICES.cutting;
+
+/** 원 단위 표기 */
+const won = (n) => `${n.toLocaleString('ko-KR')}원`;
+
+/**
+ * 견적. 줄 구성과 순서는 주문 요약과 똑같이 맞춘다.
+ * 단가를 모르는 줄은 amount = null 이고 합계에서 빠진다.
+ */
+function quote(result) {
+  const lines = [];
+  const push = (label, count, unit) => {
+    if (count > 0) lines.push({ label, count, unit, amount: unit === null ? null : unit * count });
+  };
+
+  for (const b of result.boards) {
+    push(
+      `${STORE_OPTIONS.shape} / ${b.shape}, ${STORE_OPTIONS.color} / ${storeColorLabel(b.color, b.shapeKey)}`,
+      b.sheets,
+      boardPrice(b.shapeKey, b.color),
+    );
+  }
+  push(STORE_OPTIONS.cutting, result.cutCount, cuttingPrice());
+  for (const length of MOLDING_LENGTHS) {
+    const count = result.moldings.filter((m) => m.length === length).reduce((n, m) => n + m.count, 0);
+    push(STORE_OPTIONS.moldingByLength[length], count, moldingPrice(length));
+  }
+  for (const shapeKey of Object.keys(SHAPES)) {
+    const count = result.stripOrders.filter((s) => s.shapeKey === shapeKey).reduce((n, s) => n + s.bars, 0);
+    push(STORE_OPTIONS.stripByShape[shapeKey], count, stripPrice(shapeKey));
+  }
+
+  return {
+    lines,
+    total: lines.reduce((sum, l) => sum + (l.amount ?? 0), 0),
+    unknown: lines.filter((l) => l.amount === null),
+  };
+}
+
+function formatQuote(result) {
+  const q = quote(result);
+  const lines = q.lines.map((l) => (l.amount === null
+    ? `${l.label} : ${l.count}개 × 단가 미정`
+    : `${l.label} : ${l.count}개 × ${won(l.unit)} = ${won(l.amount)}`));
+  lines.push(`합계 : ${won(q.total)}`);
+  if (q.unknown.length > 0) {
+    lines.push(`※ 단가 미정 ${q.unknown.map((l) => l.label).join(', ')} 은(는) 합계에서 빠져 있습니다.`);
+  }
+  return lines.join('\n');
+}
+</script>
+
+<script>
+(function () {
+  const $ = (s) => document.querySelector(s);
+
+  /**
+   * 결 하나의 폭. 프롬프트에 넣어 AI 가 결 간격을 잡는 기준으로 쓴다.
+   * ⚠️ 실측값이 아니다. 제품 실제 결 폭으로 고쳐야 그림이 실물에 가까워진다.
+   */
+  const RIB_PITCH_MM = 50;
+
+  /**
+   * 무늬결(오크·티크)인지 단색인지.
+   * ⚠️ 색 이름에서 추정한 값이다. 실제 마감과 다르면 이 함수만 고친다.
+   */
+  const isWood = (name) => /오크|티크/.test(name);
+
+  const PROFILE = {
+    half: 'evenly spaced convex half-round (bullnose) ribs, each rib a smooth vertical half-cylinder with a soft rounded highlight down its centre',
+    square: 'evenly spaced flat rectangular slats separated by narrow square-cut grooves, giving a crisp stepped profile',
+  };
+
+  let shape = 'half';
+  let color = colorsForShape('half')[0].name;
+  let photo = null; // { dataUrl, base64, mimeType }
+
+  function renderShapes() {
+    const box = $('#shapes');
+    box.innerHTML = '';
+    for (const key of Object.keys(SHAPES)) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = SHAPES[key].label;
+      b.setAttribute('aria-pressed', String(shape === key));
+      b.onclick = () => {
+        shape = key;
+        if (!isColorAvailable(color, key)) color = colorsForShape(key)[0].name;
+        render();
+      };
+      box.appendChild(b);
+    }
+    $('#shape-note').textContent = shape === 'half'
+      ? '반달 — 결이 둥글게 솟은 모양입니다.'
+      : '사각 — 결이 각지게 떨어지는 모양입니다.';
+  }
+
+  function renderColors() {
+    const box = $('#colors');
+    box.innerHTML = '';
+    for (const c of colorsForShape(shape)) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'sw';
+      b.setAttribute('aria-pressed', String(c.name === color));
+      b.innerHTML =
+        '<i style="background:' + (swatchOf(c.name, shape) || '#D8CBA8') + '"></i>' +
+        '<span>' + c.name + '<em>' + colorCode(c.name, shape) + '</em></span>';
+      b.onclick = () => { color = c.name; render(); };
+      box.appendChild(b);
+    }
+  }
+
+  function renderShot(resultUrl) {
+    const box = $('#shot');
+    if (!photo) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    box.innerHTML =
+      '<figure class="shot-one"><img src="' + photo.dataUrl + '" alt="올린 벽 사진"><figcaption>올린 사진</figcaption></figure>' +
+      (resultUrl
+        ? '<figure class="shot-one"><img src="' + resultUrl + '" alt="템바보드를 붙인 미리보기"><figcaption>' +
+          SHAPES[shape].label + ' · ' + storeColorLabel(color, shape) + '</figcaption></figure>'
+        : '');
+  }
+
+  function render() {
+    renderShapes();
+    renderColors();
+    $('#go').disabled = !photo;
+    const talk = $('#talk');
+    if (TALK_URL) { talk.href = TALK_URL; }
+  }
+
+  function say(text, kind) {
+    $('#msg').innerHTML = text ? '<div class="msg ' + kind + '">' + text + '</div>' : '';
+  }
+
+  /** 사진을 긴 변 1280px 로 줄여서 올린다. 빠르고 싸고, 결과 품질 차이는 거의 없다. */
+  function loadPhoto(file) {
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+      say('JPG, PNG, WEBP 사진만 올릴 수 있습니다.', 'err');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 1280;
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(img.width * scale);
+        cv.height = Math.round(img.height * scale);
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        const dataUrl = cv.toDataURL('image/jpeg', 0.85);
+        photo = { dataUrl, base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' };
+        say('', '');
+        $('#download').hidden = true;
+        $('#talk').hidden = true;
+        renderShot(null);
+        render();
+      };
+      img.onerror = () => say('사진을 읽지 못했습니다. 다른 사진으로 시도해 주세요.', 'err');
+      img.src = reader.result;
+    };
+    reader.onerror = () => say('사진을 읽지 못했습니다.', 'err');
+    reader.readAsDataURL(file);
+  }
+
+  function buildPrompt() {
+    const hex = swatchOf(color, shape) || '#D8CBA8';
+    const finish = isWood(color)
+      ? 'natural wood grain with fine vertical grain lines'
+      : 'smooth matte painted finish with no wood grain';
+
+    return [
+      'Edit this photograph of a real room.',
+      'Keep the room exactly as it is: same camera angle, same perspective, same furniture, same floor, same ceiling, same windows, same lighting and shadows. Do not add, move or remove any object.',
+      '',
+      'Change ONLY the main flat wall surface: cover it with vertical fluted wall panelling.',
+      'Profile: ' + PROFILE[shape] + '.',
+      'The ribs run strictly vertical from floor to ceiling, perfectly parallel and evenly spaced, and follow the wall perspective of the photo.',
+      'Each rib is about ' + RIB_PITCH_MM + 'mm wide in real-world scale, so scale the ribs against the furniture and the ceiling height in the photo.',
+      '',
+      'Colour: exactly ' + hex + ' (' + colorCode(color, shape) + ', ' + color + '), ' + finish + '.',
+      'Reproduce this colour accurately. Do not shift the hue, do not make it darker, lighter or more saturated. Only the lighting already in the photo may shade it.',
+      '',
+      'Keep power outlets, switches, door frames, window frames, skirting boards and trim visible and correctly positioned in front of the panelling.',
+      'Photorealistic result, same resolution and framing as the input photo.',
+    ].join('\n');
+  }
+
+  async function generate() {
+    if (!photo) return;
+    const btn = $('#go');
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = '만드는 중…';
+    say('사진에 템바보드를 입히고 있습니다. 20초쯤 걸립니다.', 'wait');
+
+    try {
+      const r = await fetch('/api/preview', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: photo.base64,
+          mimeType: photo.mimeType,
+          prompt: buildPrompt(),
+        }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        say(data.error || '이미지를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.', 'err');
+        return;
+      }
+      const url = 'data:' + (data.mimeType || 'image/png') + ';base64,' + data.imageBase64;
+      renderShot(url);
+      const dl = $('#download');
+      dl.href = url;
+      dl.hidden = false;
+      $('#talk').hidden = !TALK_URL;
+      say('', '');
+    } catch (e) {
+      say('연결에 실패했습니다. 인터넷 상태를 확인하고 다시 시도해 주세요.', 'err');
+    } finally {
+      btn.textContent = label;
+      btn.disabled = !photo;
+    }
+  }
+
+  // 업로드: 클릭 + 드래그앤드롭
+  $('#file').addEventListener('change', (e) => loadPhoto(e.target.files[0]));
+  const drop = $('#drop');
+  ['dragenter', 'dragover'].forEach((ev) =>
+    drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) =>
+    drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => loadPhoto(e.dataTransfer.files[0]));
+
+  $('#go').addEventListener('click', generate);
+
+  render();
+})();
+</script>
+
+</body>
+</html>
