@@ -171,10 +171,11 @@ footer {
   const $ = (s) => document.querySelector(s);
 
   /**
-   * 결 하나의 폭. 프롬프트에 넣어 AI 가 결 간격을 잡는 기준으로 쓴다.
-   * ⚠️ 실측값이 아니다. 제품 실제 결 폭으로 고쳐야 그림이 실물에 가까워진다.
+   * 결 굵기는 정확히 맞추지 않는다. 고객은 '우리 집이 어떻게 바뀌나' 를 보는 것이라
+   * 치수보다 분위기가 중요하다. 그래서 mm 대신 '가늘고 촘촘하게' 라는 느낌만 준다.
+   * (판이 몇 장인지·어디서 잘리는지는 계산기가 따로 알려 준다)
    */
-  const RIB_PITCH_MM = 50;
+  const RIB_LOOK = 'Slim ribs: the panelling must read as many narrow ribs, not a few wide planks — roughly 50 ribs across the whole wall.';
 
   /**
    * 무늬결(오크·티크)인지 단색인지.
@@ -296,7 +297,7 @@ footer {
       'Change ONLY the main flat wall surface: cover it with vertical fluted wall panelling.',
       'Profile: ' + PROFILE[shape] + '.',
       'The ribs run strictly vertical from floor to ceiling, perfectly parallel and evenly spaced, and follow the wall perspective of the photo.',
-      'Each rib is about ' + RIB_PITCH_MM + 'mm wide in real-world scale, so scale the ribs against the furniture and the ceiling height in the photo.',
+      RIB_LOOK,
       '',
       'Colour: exactly ' + hex + ' (' + colorCode(color, shape) + ', ' + color + '), ' + finish + '.',
       'Reproduce this colour accurately. Do not shift the hue, do not make it darker, lighter or more saturated. Only the lighting already in the photo may shade it.',
