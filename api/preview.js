@@ -7,7 +7,11 @@
  * 배포: 저장소를 Vercel 에 연결하면 이 파일이 자동으로 /api/preview 가 된다.
  */
 
-const MODEL = process.env.PREVIEW_MODEL || 'gemini-2.5-flash-image';
+/**
+ * 이미지 모델. 환경변수 PREVIEW_MODEL 로 갈아끼운다.
+ * gemini-2.5-flash-image(나노바나나)는 2026-10-02 종료라 후속 모델을 기본값으로 둔다.
+ */
+const MODEL = process.env.PREVIEW_MODEL || 'gemini-3.1-flash-image';
 const ENDPOINT = (model) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
