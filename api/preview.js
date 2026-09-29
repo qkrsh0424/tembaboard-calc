@@ -41,10 +41,16 @@ const ALLOWED_RATIO = new Set([
 const lastCallAt = new Map();
 const MIN_GAP_MS = 3000;
 
-const authHeader = () => `Key ${process.env.HF_API_KEY_ID}:${process.env.HF_API_KEY_SECRET}`;
+/**
+ * 붙여넣을 때 딸려오는 앞뒤 공백·줄바꿈을 털어낸다.
+ * 이게 섞이면 헤더가 깨져서 401 이 나는데 화면만 봐서는 원인을 알 수 없다.
+ */
+const keyId = () => (process.env.HF_API_KEY_ID || '').trim();
+const keySecret = () => (process.env.HF_API_KEY_SECRET || '').trim();
+const authHeader = () => `Key ${keyId()}:${keySecret()}`;
 
 export default async function handler(req, res) {
-  if (!process.env.HF_API_KEY_ID || !process.env.HF_API_KEY_SECRET) {
+  if (!keyId() || !keySecret()) {
     return res.status(500).json({ error: '힉스필드 API 키가 설정되지 않았습니다.' });
   }
   if (req.method === 'GET') return status(req, res);
@@ -114,10 +120,10 @@ async function submit(req, res) {
     // 어느 단계에서 몇 번으로 막혔는지만 실어 보낸다.
     // 응답 본문은 넣지 않는다 — 키나 내부 정보가 섞여 나갈 수 있다.
     const code = String(e.message || '').split(' ').slice(0, 2).join(' ');
-    return res.status(502).json({
-      error: '이미지를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.',
-      code,
-    });
+    const error = code.endsWith(' 401')
+      ? '힉스필드 API 키가 올바르지 않습니다. 키 ID 와 Secret 을 다시 확인해 주세요.'
+      : '이미지를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.';
+    return res.status(502).json({ error, code });
   }
 }
 
