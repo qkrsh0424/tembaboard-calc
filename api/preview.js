@@ -26,9 +26,12 @@ const RESOLUTION = process.env.PREVIEW_RESOLUTION || '1k';
  */
 const MAX_BYTES = 3 * 1024 * 1024;
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
-/** 모델이 받는 비율. 'auto' 는 정사각으로 떨어져서 뺐다. */
+/**
+ * 이 엔드포인트가 받는 비율. 스키마에 없는 값을 보내면 400 이 난다.
+ * ('auto' 도 있지만 enhance_prompt=false 에서는 정사각으로 떨어져서 뺐다)
+ */
 const ALLOWED_RATIO = new Set([
-  '1:1', '3:2', '2:3', '4:3', '3:4', '16:9', '9:16', '21:9', '27:16', '16:27', '9:8', '8:9', '4:5', '5:4',
+  '1:1', '3:2', '2:3', '4:3', '3:4', '16:9', '9:16', '21:9',
 ]);
 
 /**
