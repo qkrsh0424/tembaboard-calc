@@ -108,7 +108,13 @@ async function submit(req, res) {
     return res.status(200).json({ requestId: job.request_id });
   } catch (e) {
     console.error('submit', e);
-    return res.status(502).json({ error: '이미지를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.' });
+    // 어느 단계에서 몇 번으로 막혔는지만 실어 보낸다.
+    // 응답 본문은 넣지 않는다 — 키나 내부 정보가 섞여 나갈 수 있다.
+    const code = String(e.message || '').split(' ').slice(0, 2).join(' ');
+    return res.status(502).json({
+      error: '이미지를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.',
+      code,
+    });
   }
 }
 

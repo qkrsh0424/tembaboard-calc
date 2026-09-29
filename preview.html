@@ -1275,7 +1275,8 @@ function formatQuote(result) {
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) {
-        say(data.error || '이미지를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.', 'err');
+        say((data.error || '이미지를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.')
+          + (data.code ? ' <small>(' + data.code + ')</small>' : ''), 'err');
         return;
       }
 
