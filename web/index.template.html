@@ -653,6 +653,18 @@ footer {
       // 몰딩도 재단이 안 되므로(15*1200 / 15*2440 규격 주문만 가능) 남는 길이는
       // 고객이 직접 자른다. 고르는 자리에서 어느 규격이 몇 개인지, 얼마가 남는지 적는다.
       const sides = moldingSides(item);
+      // 몰딩 두께만큼 보드가 짧아진다는 걸 고르는 자리에서 바로 알린다.
+      if (sides > 0) {
+        const where = [item.useMolding && '상단', item.bottomMolding && '하단'].filter(Boolean).join('·');
+        const cut = MOLDING_DEDUCTION * sides;
+        const notice = document.createElement('div');
+        notice.className = 'opt-hint';
+        notice.innerHTML = '⚠ ' + where + ' 몰딩이 붙어 <b>보드 세로가 ' + cut + 'mm 줄어듭니다</b>'
+          + (Number.isFinite(item.height) && item.height > 0
+            ? ' · 세로 ' + item.height + ' − ' + cut + ' = <b>' + (item.height - cut) + '</b> (재단 지시서 숫자)'
+            : '');
+        fOpt.appendChild(notice);
+      }
       if (sides > 0 && Number.isFinite(item.width) && item.width > 0) {
         const plan = moldingPlan(item.width);
         const hint = document.createElement('div');
