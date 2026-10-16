@@ -121,6 +121,21 @@ export function widthPlan(width, effectiveWidth) {
   };
 }
 
+// 낱개를 사기 전에, 이미 사야 하는 원장에 남는 조각이 있으면 원장 조각 1개로 대신한다.
+// 원장 장수는 그대로이고 낱개·재단 횟수만 준다. 대신 넘치는 폭은 늘어난다.
+// 예) 사각 4060 × 800 → 300 × 13 + 100 × 2 (원장 5 + 낱개 1)
+//     → 300 × 14 (원장 5, 15칸 중 14칸 사용). 4200, 140 넘침
+// 세로가 나눠졌으면 모든 조각에서 원장 장수가 안 늘어날 때만 바꾼다(열 구성은 조각끼리 같아야 하므로).
+// ponytail: 재단면 하나 안에서만 본다. 여러 재단면이 같은 원장을 나눠 쓰는 경우는 안 본다.
+export function useSpareBoard(plan, perSheets, effectiveWidth, width) {
+  if (plan.strips === 0 || plan.boards === 0) return plan;
+  const free = perSheets.every((n) => n > 0 && Math.ceil((plan.boards + 1) / n) === Math.ceil(plan.boards / n));
+  if (!free) return plan;
+  const boards = plan.boards + 1;
+  const covered = boards * effectiveWidth;
+  return { boards, strips: 0, covered, overhang: covered - width };
+}
+
 /** 재단 조각 총 개수 (원장 조각 + 낱개 조각) */
 export function pieceCount(width, effectiveWidth) {
   const plan = widthPlan(width, effectiveWidth);
@@ -250,13 +265,15 @@ export function calculateItem(input) {
 
   const finished = finishedLength(height, useMolding);
   const usableLength = usableSheetLength(shapeSpec, trimEnds);
-  const plan = widthPlan(width, shapeSpec.effectiveWidth);
+  const lengths = lengthPlan(finished, usableLength);
+  const perSheets = lengths.map((f) => piecesPerSheet(f + CUT_LOSS, usableLength));
+  const plan = useSpareBoard(widthPlan(width, shapeSpec.effectiveWidth), perSheets, shapeSpec.effectiveWidth, width);
   const pieces = plan.boards + plan.strips;
 
   // 세로가 유효길이를 넘으면 여러 조각으로 나눠 이어 붙인다.
-  const segments = lengthPlan(finished, usableLength).map((segFinished) => {
+  const segments = lengths.map((segFinished, i) => {
     const length = segFinished + CUT_LOSS;
-    const perSheet = piecesPerSheet(length, usableLength);
+    const perSheet = perSheets[i];
     // 원장과 낱개는 자재가 다르므로 소요 수량도 따로 센다.
     const stocks = [
       { kind: STOCK_BOARD, stockWidth: shapeSpec.effectiveWidth, pieces: plan.boards },

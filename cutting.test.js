@@ -468,19 +468,28 @@ test('TC-3 자투리 — 끝단정리 O 면 유효길이가 줄어 자투리도 
 
 test('합산된 사양은 자투리도 합산 기준으로 다시 계산한다', () => {
   const result = calculate([
-    { shape: 'half', color: '화이트', width: 600, height: 800 },
-    { shape: 'half', color: '화이트', width: 600, height: 800 },
+    { shape: 'half', color: '화이트', width: 295, height: 800 },
+    { shape: 'half', color: '화이트', width: 295, height: 800 },
   ]);
 
-  // 원장 2 + 2 = 4조각 → 자재당 3개 → 원장 2개 (3개 + 1개). 낱개 2조각 → 1개
+  // 1 + 1 = 2조각 → 자재당 3개 → 원장 1개. 따로 뽑았으면 자투리가 2개 나왔다.
   assert.equal(
     formatLeftovers(result),
-    [
-      '반달-화이트 : 가로 295 X 세로 1635, 1개 (세로 자르고 남은 부분)', // 1조각만 뽑은 자재
-      '반달-화이트 : 가로 295 X 세로 25, 1개 (세로 자르고 남은 부분)',   // 2440 - 805×3
-      '반달-화이트 : 가로 100 X 세로 830, 1개 (세로 자르고 남은 부분)',  // 2440 - 805×2
-    ].join('\n'),
+    '반달-화이트 : 가로 295 X 세로 830, 1개 (세로 자르고 남은 부분)', // 2440 - 805×2
   );
+});
+
+test('이미 사는 원장에 남는 칸이 있으면 낱개 대신 원장 조각을 쓴다', () => {
+  // 4060 = 300 × 13 + 100 × 2 였지만, 원장 5장(15칸) 중 13칸만 써서 2칸이 남는다.
+  const item = calculateItem({ shape: 'square', color: '화이트', width: 4060, height: 800 });
+  assert.deepEqual(item.widthPlan, { boards: 14, strips: 0, covered: 4200, overhang: 140 });
+  assert.equal(item.sheets, 5);
+  assert.equal(item.strips, 0);
+  assert.equal(item.cutCount, 42);
+
+  // 원장이 한 장 더 필요해지면 낱개를 그대로 쓴다 (원장당 1개)
+  const tall = calculateItem({ shape: 'half', color: '화이트', width: 1200, height: 2000, useMolding: true });
+  assert.deepEqual(tall.widthPlan, { boards: 4, strips: 1, covered: 1280, overhang: 80 });
 });
 
 test('몰딩 자투리는 색상별 합계', () => {

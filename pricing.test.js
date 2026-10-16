@@ -41,12 +41,12 @@ test('TC-1 견적 — 반달 화이트 1200 × 2000 몰딩 O', () => {
 });
 
 test('사각 견적 — 낱개까지 합산', () => {
-  const result = calculate([{ shape: 'square', color: '진한오크', width: 400, height: 800 }]);
+  const result = calculate([{ shape: 'square', color: '진한오크', width: 400, height: 2000 }]);
   const q = quote(result);
 
-  // 원장 1장 45,000 + 재단 6회 3,000 + 낱개 1개 16,000
-  assert.equal(q.total, 64000);
-  assert.ok(formatQuote(result).includes('합계 : 64,000원'));
+  // 원장 1장 45,000 + 재단 2회 1,000 + 낱개 1개 16,000 (원장당 1개라 남는 칸이 없어 낱개를 산다)
+  assert.equal(q.total, 62000);
+  assert.ok(formatQuote(result).includes('합계 : 62,000원'));
 });
 
 test('재단비는 재단 횟수만큼 붙는다', () => {
