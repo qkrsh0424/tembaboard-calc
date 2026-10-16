@@ -829,11 +829,10 @@ function sheetsNeeded(pieces, perSheet) {
 }
 
 // --- 2.7 재단 횟수 (스토어 '재단 필요해요' 수량) ----------------------------
-// 원장 길이를 재단 길이로 나눈 횟수 × 가로 장수.
-// 예) 2440 / 800 → 3회, 폭 1200(사각 300) → 4장 → 3 × 4 = 12회
-function cutCount(usableLength, length, pieces) {
-  return Math.floor(usableLength / length) * pieces;
-}
+// 실제로 잘라내는 조각 수. 조각 하나에 1회. (2026-10-16 변경)
+// 예) 4060 × 800 → 원장 12조각 + 낱개 5조각 = 17회
+//     (전에는 floor(2440 / 805) × 조각 수 = 3 × 17 = 51 로 조각마다 3번씩 셌다)
+// ponytail: 자재에 딱 맞게 들어가 꼬리가 0 인 마지막 조각(1220 × 2)도 1회로 센다.
 
 // --- 2.8 몰딩 수량 ----------------------------------------------------------
 // 필요 길이 = 고객 입력 가로. 2440/1200 조합으로 덮는다.
@@ -990,7 +989,7 @@ function calculateItem(input, boards = null) {
     piecesPerSheet: segments[0].piecesPerSheet,
     sheets: barsOf(STOCK_BOARD),
     strips: barsOf(STOCK_STRIP),
-    cutCount: segments.reduce((n, seg) => n + cutCount(usableLength, seg.cutLength, seg.pieces), 0),
+    cutCount: segments.reduce((n, seg) => n + seg.pieces, 0),
     /** 몰딩 한 면 분량. 면 수는 moldingSides */
     molding: sides > 0 ? moldingPlan(width) : null,
     moldingSides: sides,
@@ -1093,7 +1092,7 @@ function chooseBoards(items) {
     const cost = (tot) => lengths.reduce((won, seg, L) => {
       const B = tot[2 * L], S = tot[2 * L + 1];
       return won + Math.ceil(B / seg.piecesPerSheet) * bp + Math.ceil(S / seg.piecesPerSheet) * sp
-        + Math.floor(first.usableLength / seg.cutLength) * (B + S) * cp;
+        + (B + S) * cp;
     }, 0);
 
     // 상태: 길이별 [원장 합, 낱개 합] → { changed, overhang, picks }
