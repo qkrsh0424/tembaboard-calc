@@ -528,6 +528,30 @@ test('세로가 달라도 조각 길이가 같으면 자재를 나눠 쓰는 걸
   assert.equal(result.boards.length, 0);
 });
 
+test('상단 + 하단 몰딩 — 세로 30 차감, 몰딩 수량 2배, 배치도 위아래', () => {
+  const result = calculate([{
+    shape: 'square', color: '화이트', width: 2500, height: 2030, useMolding: true, bottomMolding: true,
+  }]);
+  const [item] = result.items;
+  assert.equal(item.finishedLength, 2000, '2030 - 15 × 2');
+  assert.equal(item.moldingSides, 2);
+  // 2500 → 2440 + 1200 한 면. 두 면이라 각 2개
+  assert.deepEqual(result.moldings.map((m) => [m.length, m.count]), [[1200, 2], [2440, 2]]);
+  assert.deepEqual(result.moldingLeftovers.map((m) => [m.leftover, m.count]), [[1140, 2]]);
+  assert.deepEqual(result.walls[0].rows.map((r) => r.kind), ['molding', 'piece', 'molding']);
+  assert.equal(result.walls[0].rows.reduce((n, r) => n + r.length, 0), 2030, '행 길이 합 = 세로');
+
+  // 하단만
+  const [bottom] = calculate([{ shape: 'square', color: '화이트', width: 600, height: 1215, bottomMolding: true }]).items;
+  assert.equal(bottom.finishedLength, 1200);
+  assert.deepEqual(calculate([{ shape: 'square', color: '화이트', width: 600, height: 1215, bottomMolding: true }])
+    .walls[0].rows.map((r) => r.kind), ['piece', 'molding']);
+
+  // 30 이하면 몰딩 차감 후 0 이하
+  assert.throws(() => calculateItem({ shape: 'square', color: '화이트', width: 600, height: 30, useMolding: true, bottomMolding: true }),
+    (e) => e.code === 'CUT_LENGTH_TOO_SMALL');
+});
+
 test('몰딩 자투리는 색상별 합계', () => {
   const result = calculate([
     { shape: 'square', color: '화이트', width: 2500, height: 800, useMolding: true },

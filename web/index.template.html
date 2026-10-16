@@ -403,7 +403,7 @@ footer {
       <span>재단손실 <b>+5</b></span>
       <span>낱개템바 <b>100</b></span>
       <span>끝단정리 <b>-20</b></span>
-      <span>상단몰딩 <b>-15</b></span>
+      <span>몰딩 1면당 <b>+15</b></span>
       <span>가로 재단 <b>불가</b></span>
       <span>몰딩 재단 <b>불가</b></span>
     </div>
@@ -532,7 +532,7 @@ footer {
   const $ = (sel) => document.querySelector(sel);
   const SHAPE_KEYS = ['half', 'square'];
   // 치수는 비워 둔 채로 시작한다
-  const blank = () => ({ shape: 'half', color: '화이트', width: NaN, height: NaN, useMolding: true, trimEnds: false });
+  const blank = () => ({ shape: 'half', color: '화이트', width: NaN, height: NaN, useMolding: false, bottomMolding: false, trimEnds: false });
   const isBlank = (v) => v === undefined || v === null || v === '' || Number.isNaN(v);
   const isEmptyItem = (it) => isBlank(it.width) && isBlank(it.height);
 
@@ -635,13 +635,22 @@ footer {
       fOpt.innerHTML = '<label>옵션</label>';
       const toggles = document.createElement('div');
       toggles.className = 'toggles';
-      [['useMolding', '마감몰딩 (상단 −15)'], ['trimEnds', '끝단 정리 (−20)']].forEach(([key, label]) => {
+      // 몰딩은 보드 위·아래에 15mm 씩 붙는다. 세로 칸은 몰딩까지 합친 높이라서
+      // 몰딩을 켜면 세로 칸에 15 를 더하고 끄면 뺀다. 보드 높이는 그대로 유지된다.
+      const MOLDING_KEYS = ['useMolding', 'bottomMolding'];
+      [['useMolding', '상단 몰딩 (+15)'], ['bottomMolding', '하단 몰딩 (+15)'], ['trimEnds', '끝단 정리 (−20)']].forEach(([key, label]) => {
         const lab = document.createElement('label');
         lab.className = 'toggle' + (item[key] ? ' on' : '');
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.checked = !!item[key];
-        cb.onchange = () => { item[key] = cb.checked; render(); };
+        cb.onchange = () => {
+          item[key] = cb.checked;
+          if (MOLDING_KEYS.includes(key) && Number.isFinite(item.height)) {
+            item.height += cb.checked ? MOLDING_DEDUCTION : -MOLDING_DEDUCTION;
+          }
+          render();
+        };
         lab.appendChild(cb);
         lab.appendChild(document.createTextNode(label));
         toggles.appendChild(lab);
@@ -651,15 +660,17 @@ footer {
       // 마감몰딩은 가로에 맞춰 2440 / 1200 을 조합해 덮는다.
       // 몰딩도 재단이 안 되므로(15*1200 / 15*2440 규격 주문만 가능) 남는 길이는
       // 고객이 직접 자른다. 고르는 자리에서 어느 규격이 몇 개인지, 얼마가 남는지 적는다.
-      if (item.useMolding && Number.isFinite(item.width) && item.width > 0) {
+      const sides = moldingSides(item);
+      if (sides > 0 && Number.isFinite(item.width) && item.width > 0) {
         const plan = moldingPlan(item.width);
         const hint = document.createElement('div');
         hint.className = 'opt-hint';
         hint.innerHTML = '몰딩 <b>'
-          + plan.items.map((m) => m.length + 'mm × ' + m.count + '개').join(' + ')
-          + '</b> · ' + (plan.leftover > 0
+          + plan.items.map((m) => m.length + 'mm × ' + m.count * sides + '개').join(' + ')
+          + '</b>' + (sides > 1 ? ' (상단·하단 면마다 ' + plan.items.map((m) => m.length + ' × ' + m.count).join(' + ') + ')' : '')
+          + ' · ' + (plan.leftover > 0
             ? '규격 그대로 나갑니다. 가로 ' + item.width + ' 보다 '
-              + '<b>' + plan.leftover + ' 길어</b> 직접 잘라 쓰셔야 합니다'
+              + '<b>' + plan.leftover + ' 길어</b> 직접 잘라 쓰셔야 합니다' + (sides > 1 ? ' (면마다)' : '')
             : '가로 ' + item.width + ' 에 딱 맞습니다');
         fOpt.appendChild(hint);
       }
@@ -1020,8 +1031,9 @@ footer {
     const caption = [
       '<b>' + label + '</b>',
       '재단면 ' + String(no).padStart(2, '0'),
-      plan.items.map((m) => m.length + ' × ' + m.count + '개').join(' + '),
-      plan.leftover > 0 ? plan.leftover + ' 남음' : '남는 길이 없음',
+      plan.items.map((m) => m.length + ' × ' + m.count + '개').join(' + ')
+        + (item.moldingSides > 1 ? ' × 상단·하단 2면' : ''),
+      plan.leftover > 0 ? plan.leftover + ' 남음' + (item.moldingSides > 1 ? ' (면마다)' : '') : '남는 길이 없음',
     ].map((t) => '<span>' + t + '</span>').join('');
     return figure(svg, caption);
   }
