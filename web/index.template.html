@@ -403,7 +403,7 @@ footer {
       <span>재단손실 <b>+5</b></span>
       <span>낱개템바 <b>100</b></span>
       <span>끝단정리 <b>-20</b></span>
-      <span>몰딩 1면당 <b>+15</b></span>
+      <span>마감몰딩 <b>세로 별도</b></span>
       <span>가로 재단 <b>불가</b></span>
       <span>몰딩 재단 <b>불가</b></span>
     </div>
@@ -635,22 +635,14 @@ footer {
       fOpt.innerHTML = '<label>옵션</label>';
       const toggles = document.createElement('div');
       toggles.className = 'toggles';
-      // 몰딩은 보드 위·아래에 15mm 씩 붙는다. 세로 칸은 몰딩까지 합친 높이라서
-      // 몰딩을 켜면 세로 칸에 15 를 더하고 끄면 뺀다. 보드 높이는 그대로 유지된다.
-      const MOLDING_KEYS = ['useMolding', 'bottomMolding'];
-      [['useMolding', '상단 몰딩 (+15)'], ['bottomMolding', '하단 몰딩 (+15)'], ['trimEnds', '끝단 정리 (−20)']].forEach(([key, label]) => {
+      // 세로 칸 = 보드 높이. 몰딩은 보드 위·아래에 따로 붙으므로 세로를 바꾸지 않는다.
+      [['useMolding', '상단 몰딩'], ['bottomMolding', '하단 몰딩'], ['trimEnds', '끝단 정리 (−20)']].forEach(([key, label]) => {
         const lab = document.createElement('label');
         lab.className = 'toggle' + (item[key] ? ' on' : '');
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.checked = !!item[key];
-        cb.onchange = () => {
-          item[key] = cb.checked;
-          if (MOLDING_KEYS.includes(key) && Number.isFinite(item.height)) {
-            item.height += cb.checked ? MOLDING_DEDUCTION : -MOLDING_DEDUCTION;
-          }
-          render();
-        };
+        cb.onchange = () => { item[key] = cb.checked; render(); };
         lab.appendChild(cb);
         lab.appendChild(document.createTextNode(label));
         toggles.appendChild(lab);
@@ -905,7 +897,8 @@ footer {
       { cls: 'dim' }));
 
     const vb = [0, 0, PAD.l + totalW + PAD.r, PAD.t + H + PAD.b];
-    const label = item.shape.label + ' ' + item.color.name + ' ' + wall.width + ' × ' + wall.height;
+    const label = item.shape.label + ' ' + item.color.name + ' ' + wall.width + ' × ' + item.height
+      + (item.moldingSides > 0 ? ' (몰딩 포함 ' + wall.height + ')' : '');
     const svg = el('svg', {
       class: 'dwg', viewBox: vb.join(' '), width: vb[2], height: vb[3],
       role: 'img', 'aria-label': label + ' 벽면 배치도. 열 구성 ' + columnSummary(wall.columns),
