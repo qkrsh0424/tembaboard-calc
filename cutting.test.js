@@ -39,8 +39,8 @@ test('TC-1 반달 / 화이트 / 1200 × 2000 / 몰딩 O / 끝단정리 X', () =>
     trimEnds: false,
   });
 
-  assert.equal(item.finishedLength, 2000, '완성 치수 = 입력 세로 (몰딩은 세로에서 빼지 않는다)');
-  assert.equal(item.cutLength, 2005, '재단 길이 = 완성 2000 + 재단손실 5');
+  assert.equal(item.finishedLength, 1985, '완성 치수 = 2000 - 15');
+  assert.equal(item.cutLength, 1990, '재단 길이 = 완성 1985 + 재단손실 5');
   assert.deepEqual(item.widthPlan,
     { boards: 4, strips: 1, covered: 1280, overhang: 80 },
     '가로 1200 = 295 × 4 + 100 × 1');
@@ -48,7 +48,7 @@ test('TC-1 반달 / 화이트 / 1200 × 2000 / 몰딩 O / 끝단정리 X', () =>
   assert.equal(item.piecesPerSheet, 1, '원장당 = floor(2460 / 2010)');
   assert.equal(item.sheets, 4, '원장 ceil(4 / 1)');
   assert.equal(item.strips, 1, '낱개 ceil(1 / 1)');
-  assert.equal(item.cutCount, 5, '재단 횟수 = floor(2440 / 2005) × 5');
+  assert.equal(item.cutCount, 5, '재단 횟수 = floor(2440 / 1990) × 5');
   assert.deepEqual(item.molding.items, [{ length: 1200, count: 1 }], '몰딩 = 1200 × 1개');
 
   const result = calculate([{
@@ -56,7 +56,7 @@ test('TC-1 반달 / 화이트 / 1200 × 2000 / 몰딩 O / 끝단정리 X', () =>
   }]);
   assert.equal(
     formatCuttingSheet(result),
-    ['반달-화이트 : 2000 - 4조각', '반달-화이트 100폭 : 2000 - 1조각', '마감몰딩-화이트 (상단) : 1200 - 1개'].join('\n'),
+    ['반달-화이트 : 1985 - 4조각', '반달-화이트 100폭 : 1985 - 1조각', '마감몰딩-화이트 (상단) : 1200 - 1개'].join('\n'),
   );
   assert.equal(
     formatOrderSummary(result),
@@ -131,7 +131,7 @@ test('TC-5 동일 모양·색상·재단길이 2건은 한 줄로 합산', () =>
   // 원장 4 + 2 = 6조각, 낱개 1 + 1 = 2조각
   assert.equal(
     formatCuttingSheet(result),
-    ['반달-화이트 : 2000 - 6조각', '반달-화이트 100폭 : 2000 - 2조각', '마감몰딩-화이트 (상단) : 1200 - 2개'].join('\n'),
+    ['반달-화이트 : 1985 - 6조각', '반달-화이트 100폭 : 1985 - 2조각', '마감몰딩-화이트 (상단) : 1200 - 2개'].join('\n'),
   );
   assert.deepEqual(result.boards, [{ shape: '반달', shapeKey: 'half', color: '화이트', sheets: 6 }]);
 });
@@ -148,8 +148,8 @@ test('TC-5 보강: 사양이 다르면 줄을 나눈다', () => {
     [
       '사각-화이트 : 1200 - 2조각',      // 900 = 300 × 2 + 100 × 3 이 원장 3장보다 싸다
       '사각-화이트 100폭 : 1200 - 3조각',
-      '반달-진한티크 : 2000 - 4조각',
-      '반달-진한티크 100폭 : 2000 - 1조각',
+      '반달-진한티크 : 1985 - 4조각',
+      '반달-진한티크 100폭 : 1985 - 1조각',
       '마감몰딩-진한티크 (상단) : 1200 - 1개',
     ].join('\n'),
   );
@@ -212,12 +212,12 @@ test('세로가 유효길이를 넘으면 나눠서 이어 붙인다', () => {
   assert.deepEqual(lengthPlan(7500, 2440), [2435, 2435, 2435, 195], '몇 조각이든 상한 없음');
 });
 
-test('세로 2985 사각 1200 — 조각별로 자재를 따로 센다', () => {
+test('세로 3000 사각 1200 — 조각별로 자재를 따로 센다', () => {
   const item = calculateItem({
-    shape: 'square', color: '화이트', width: 1200, height: 2985, useMolding: true,
+    shape: 'square', color: '화이트', width: 1200, height: 3000, useMolding: true,
   });
 
-  assert.equal(item.finishedLength, 2985);
+  assert.equal(item.finishedLength, 2985, '3000 - 몰딩 15');
   assert.equal(item.joints, 1, '이음 1군데');
   assert.deepEqual(item.segments.map((s) => s.finishedLength), [2435, 550]);
   assert.deepEqual(item.segments.map((s) => s.cutLength), [2440, 555]);
@@ -226,7 +226,7 @@ test('세로 2985 사각 1200 — 조각별로 자재를 따로 센다', () => {
   assert.equal(item.sheets, 5, '4 + 1');
 
   const result = calculate([{
-    shape: 'square', color: '화이트', width: 1200, height: 2985, useMolding: true,
+    shape: 'square', color: '화이트', width: 1200, height: 3000, useMolding: true,
   }]);
   assert.equal(
     formatCuttingSheet(result),
@@ -302,13 +302,14 @@ test('같은 스토어 옵션에 색이 섞이면 내역을 덧붙인다', () =>
 
 // --- 재단 손실 5mm ----------------------------------------------------------
 test('재단 손실 — 완성 치수는 보존하고 5mm 크게 잘라낸다', () => {
-  assert.equal(finishedLength(2000), 2000, '입력 세로 그대로 (몰딩은 세로 별도)');
-  assert.equal(cutLength(2000), 2005, '완성 2000 + 재단손실 5');
-  assert.equal(cutLength(800), 805);
+  assert.equal(finishedLength(2000, true), 1985, '몰딩 O → 2000 - 15');
+  assert.equal(cutLength(2000, true), 1990, '완성 1985 + 재단손실 5');
+  assert.equal(finishedLength(800, false), 800, '몰딩 X → 그대로');
+  assert.equal(cutLength(800, false), 805);
   // 조각 1개당 1회. 3개 뽑으면 원장에서 5 × 3 = 15 를 더 쓴다.
   // 805 × 3 = 2415 ≤ 2440 이라 3개. 5mm 가 없었다면 2400 이라 역시 3개지만,
   // 4개는 3220 이라 어느 쪽이든 안 된다.
-  assert.equal(piecesPerSheet(cutLength(800), 2440), 3, 'floor(2440 / 805)');
+  assert.equal(piecesPerSheet(cutLength(800, false), 2440), 3, 'floor(2440 / 805)');
 });
 
 // --- 2.5 원장당 개수 검증 (CLAUDE.md 예시) ----------------------------------
@@ -388,8 +389,8 @@ test('관리자 주문요약 — 마감몰딩도 한 줄로 나온다 (재단내
   }]);
 
   assert.deepEqual(formatAdminOrder(result).split('\n'), [
-    '붙이는 사각템바 12T_30cm\t300*2440*12T\tJA8401-연한오크\t3\t300*1170*12T 6조각',
-    '붙이는 사각템바 12T_10cm\t100*2440*12T\tJA8401-연한오크\t1\t100*1170*12T 2조각',
+    '붙이는 사각템바 12T_30cm\t300*2440*12T\tJA8401-연한오크\t3\t300*1155*12T 6조각',
+    '붙이는 사각템바 12T_10cm\t100*2440*12T\tJA8401-연한오크\t1\t100*1155*12T 2조각',
     '붙이는 마감몰딩\t15*2440*12T\tJA8401-연한오크\t1',
   ]);
 });
@@ -451,8 +452,8 @@ test('TC-1 자투리 — 원장/낱개를 나눠 적는다', () => {
   assert.equal(
     formatLeftovers(result),
     [
-      '반달-화이트 : 가로 295 X 세로 435, 4개 (세로 자르고 남은 부분)',
-      '반달-화이트 : 가로 100 X 세로 435, 1개 (세로 자르고 남은 부분)',
+      '반달-화이트 : 가로 295 X 세로 450, 4개 (세로 자르고 남은 부분)',
+      '반달-화이트 : 가로 100 X 세로 450, 1개 (세로 자르고 남은 부분)',
       '마감몰딩-화이트 : 남는 길이 없음',
     ].join('\n'),
   );
@@ -528,29 +529,38 @@ test('세로가 달라도 조각 길이가 같으면 자재를 나눠 쓰는 걸
   assert.equal(result.boards.length, 0);
 });
 
-test('상단 + 하단 몰딩 — 세로는 그대로, 몰딩 수량 2배, 지시서·배치도에 표시', () => {
+test('상단 + 하단 몰딩 — 세로 30 차감, 몰딩 수량 2배, 배치도 위아래', () => {
   const result = calculate([{
-    shape: 'square', color: '화이트', width: 2500, height: 2000, useMolding: true, bottomMolding: true,
+    shape: 'square', color: '화이트', width: 2500, height: 2030, useMolding: true, bottomMolding: true,
   }]);
   const [item] = result.items;
-  assert.equal(item.finishedLength, 2000, '몰딩은 세로에서 빼지 않는다');
+  assert.equal(item.finishedLength, 2000, '2030 - 15 × 2');
   assert.equal(item.moldingSides, 2);
   // 2500 → 2440 + 1200 한 면. 두 면이라 각 2개
   assert.deepEqual(result.moldings.map((m) => [m.length, m.count]), [[1200, 2], [2440, 2]]);
   assert.deepEqual(result.moldingLeftovers.map((m) => [m.leftover, m.count]), [[1140, 2]]);
-  assert.ok(formatCuttingSheet(result).endsWith('마감몰딩-화이트 (상단·하단) : 2440 - 2개, 1200 - 2개'),
-    formatCuttingSheet(result));
-
-  const wall = result.walls[0];
-  assert.deepEqual(wall.rows.map((r) => r.kind), ['molding', 'piece', 'molding']);
-  assert.equal(wall.height, 2030, '배치도 높이 = 보드 2000 + 몰딩 15 × 2');
-  assert.equal(wall.rows.reduce((n, r) => n + r.length, 0), wall.height, '행 길이 합 = 배치도 높이');
+  assert.deepEqual(result.walls[0].rows.map((r) => r.kind), ['molding', 'piece', 'molding']);
+  assert.equal(result.walls[0].rows.reduce((n, r) => n + r.length, 0), 2030, '행 길이 합 = 세로');
 
   // 하단만
-  const bottom = calculate([{ shape: 'square', color: '화이트', width: 600, height: 1200, bottomMolding: true }]);
-  assert.equal(bottom.items[0].finishedLength, 1200);
-  assert.deepEqual(bottom.walls[0].rows.map((r) => r.kind), ['piece', 'molding']);
-  assert.ok(formatCuttingSheet(bottom).endsWith('마감몰딩-화이트 (하단) : 1200 - 1개'));
+  const [bottom] = calculate([{ shape: 'square', color: '화이트', width: 600, height: 1215, bottomMolding: true }]).items;
+  assert.equal(bottom.finishedLength, 1200);
+  assert.deepEqual(calculate([{ shape: 'square', color: '화이트', width: 600, height: 1215, bottomMolding: true }])
+    .walls[0].rows.map((r) => r.kind), ['piece', 'molding']);
+
+  // 30 이하면 몰딩 차감 후 0 이하
+  assert.throws(() => calculateItem({ shape: 'square', color: '화이트', width: 600, height: 30, useMolding: true, bottomMolding: true }),
+    (e) => e.code === 'CUT_LENGTH_TOO_SMALL');
+});
+
+test('재단 지시서 — 상하단 몰딩이면 보드는 30 줄고 몰딩 줄이 붙는다', () => {
+  // 세로 800 = 몰딩까지 합친 높이 → 보드 770
+  const result = calculate([{
+    shape: 'square', color: '화이트', width: 4060, height: 800, useMolding: true, bottomMolding: true,
+  }]);
+  const sheet = formatCuttingSheet(result).split('\n');
+  assert.ok(sheet.every((l) => l.startsWith('마감몰딩') || l.includes(': 770 -')), sheet.join('\n'));
+  assert.equal(sheet.at(-1), '마감몰딩-화이트 (상단·하단) : 2440 - 4개');
 });
 
 test('몰딩 자투리는 색상별 합계', () => {
@@ -576,7 +586,7 @@ test('자투리가 하나도 없으면 그렇게 적는다', () => {
 });
 
 // --- 5-(4) 입력 검증 --------------------------------------------------------
-test('입력 검증 — 0/음수, 원장 초과', () => {
+test('입력 검증 — 0/음수, 몰딩 차감 후 0 이하, 원장 초과', () => {
   const base = { shape: 'half', color: '화이트' };
 
   assert.equal(validateItem({ ...base, width: 0, height: 800 })[0].code, 'INVALID_WIDTH');
@@ -584,8 +594,10 @@ test('입력 검증 — 0/음수, 원장 초과', () => {
   assert.equal(validateItem({ ...base, width: 600, height: 0 })[0].code, 'INVALID_HEIGHT');
   assert.equal(validateItem({ ...base, width: 600, height: NaN })[0].code, 'INVALID_HEIGHT');
 
-  // 몰딩은 세로에서 빼지 않으므로 세로가 작아도 오류가 아니다
-  assert.deepEqual(validateItem({ ...base, width: 600, height: 15, useMolding: true, bottomMolding: true }), []);
+  assert.equal(
+    validateItem({ ...base, width: 600, height: 15, useMolding: true })[0].code,
+    'CUT_LENGTH_TOO_SMALL',
+  );
   // 세로 상한은 없다. 유효길이를 넘으면 나눠서 이어 붙인다.
   assert.deepEqual(validateItem({ ...base, width: 600, height: 2441 }), []);
   assert.deepEqual(validateItem({ ...base, width: 600, height: 9000 }), []);
@@ -597,8 +609,8 @@ test('입력 검증 — 0/음수, 원장 초과', () => {
 
 test('calculateItem 은 검증 실패 시 CuttingError 를 던진다', () => {
   assert.throws(
-    () => calculateItem({ shape: 'half', color: '화이트', width: 600, height: 0, useMolding: true }),
-    (err) => err instanceof CuttingError && err.code === 'INVALID_HEIGHT',
+    () => calculateItem({ shape: 'half', color: '화이트', width: 600, height: 15, useMolding: true }),
+    (err) => err instanceof CuttingError && err.code === 'CUT_LENGTH_TOO_SMALL',
   );
 });
 
@@ -630,20 +642,19 @@ test('벽면 배치도 — 열 폭 합이 시공 가로, 행 길이 합이 세�
 
   assert.deepEqual(wall.rows, [
     { kind: 'molding', length: 15 },
-    { kind: 'piece', length: 2000, cutLength: 2005 },
+    { kind: 'piece', length: 1985, cutLength: 1990 },
   ]);
-  assert.equal(wall.rows.reduce((n, r) => n + r.length, 0), 2015, '행 길이 합 = 세로 + 몰딩');
-  assert.equal(wall.height, 2015);
+  assert.equal(wall.rows.reduce((n, r) => n + r.length, 0), 2000, '행 길이 합 = 세로');
 });
 
 test('벽면 배치도 — 세로가 나뉘면 행도 나뉜다', () => {
   const result = calculate([{
-    shape: 'square', color: '화이트', width: 1200, height: 2985, useMolding: true,
+    shape: 'square', color: '화이트', width: 1200, height: 3000, useMolding: true,
   }]);
   const wall = result.walls[0];
 
   assert.deepEqual(wall.rows.map((r) => r.length), [15, 2435, 550]);
-  assert.equal(wall.rows.reduce((n, r) => n + r.length, 0), 3000, '보드 2985 + 몰딩 15');
+  assert.equal(wall.rows.reduce((n, r) => n + r.length, 0), 3000);
 });
 
 test('재단 도면 — 자재 1개에 들어가는 조각과 남는 길이', () => {
@@ -663,8 +674,8 @@ test('재단 도면 — 같은 모양 자재는 묶고 개수는 소요 수량�
   }]);
 
   assert.deepEqual(result.barGroups.map((g) => [g.kind, g.count, g.tail, g.bars]), [
-    ['board', 1, 435, 4], // 2440 - 2005
-    ['strip', 1, 435, 1],
+    ['board', 1, 450, 4], // 2440 - 1990
+    ['strip', 1, 450, 1],
   ]);
 
   const boardBars = result.barGroups.filter((g) => g.kind === 'board').reduce((n, g) => n + g.bars, 0);
@@ -690,7 +701,7 @@ test('재단 도면 묶음에 모양 키가 들어 있다 (색 조회용)', () =
 
 test('자투리 목록 — 재단 후 손에 남는 조각을 한 곳에 모은다', () => {
   const result = calculate([{
-    shape: 'half', color: '화이트', width: 1200, height: 3985, useMolding: true,
+    shape: 'half', color: '화이트', width: 1200, height: 4000, useMolding: true,
   }]);
 
   assert.deepEqual(

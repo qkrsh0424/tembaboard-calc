@@ -26,8 +26,8 @@ export const SHAPE_ALIASES = { round: 'half', 원형: 'half' };
 export const KERF = 0;
 /** 끝단 정리 선택 시 원장에서 빠지는 길이. */
 export const TRIM_LOSS = 20;
-/** 마감몰딩 두께. 보드 세로와 별개로 위·아래에 붙는다 (배치도에만 쓴다). */
-export const MOLDING_THICKNESS = 15;
+/** 마감몰딩 1면당 차감 (상단·하단 각각). */
+export const MOLDING_DEDUCTION = 15;
 /** 재단 손실. 조각을 자를 때마다 세로가 이만큼 줄어든다. 조각 1개당 1회. */
 export const CUT_LOSS = 5;
 /** 낱개 템바 폭 (100 × 2440). 원장으로 못 채우는 자투리 폭을 이걸로 메운다. */
@@ -59,18 +59,20 @@ export function resolveShape(shape) {
 }
 
 // --- 2.2 완성 치수 / 재단 길이 (세로) ---------------------------------------
-// 완성 치수 = 고객 입력 세로 = 보드 높이. 몰딩은 보드 위·아래에 따로 붙으므로
-// 세로에서 빼지 않는다 (2026-10-16 변경. 전에는 상단 몰딩 15 를 뺐다).
-export function finishedLength(height) {
-  return height;
+// 입력 세로 = 몰딩까지 합친 전체 높이. 몰딩은 상단·하단에 붙을 수 있고,
+// 붙는 면마다 보드 세로에서 15mm 를 뺀다 (상단 + 하단 = 30). 800 + 상하단 → 보드 770.
+// 완성 치수 = 고객에게 나가는 길이.
+// moldings: 붙는 몰딩 면 수 (상단 1 / 상단 + 하단 2). true/false 도 1/0 으로 받는다.
+export function finishedLength(height, moldings) {
+  return height - MOLDING_DEDUCTION * Number(moldings);
 }
 
 // 재단하면 조각 세로가 5mm 줄어든다. 완성 치수를 맞추려면 그만큼 크게 잘라야 하므로
 // 원장에서 실제로 잘라내는 길이(= 원장 점유 길이)는 완성 치수 + 5.
 // 자재 소요량·재단 횟수·자투리는 전부 이 길이로 센다.
 // 다만 화면과 지시서에 적는 숫자는 완성 치수다 (formatCuttingSheet 참고).
-export function cutLength(height) {
-  return finishedLength(height) + CUT_LOSS;
+export function cutLength(height, moldings) {
+  return finishedLength(height, moldings) + CUT_LOSS;
 }
 
 // --- 2.2b 세로 나누기 -------------------------------------------------------
@@ -216,6 +218,7 @@ export function moldingSides(input) {
 export function validateItem(input) {
   const errors = [];
   const { width, height } = input;
+  const sides = moldingSides(input);
 
   let shapeSpec = null;
   try {
@@ -237,8 +240,16 @@ export function validateItem(input) {
   }
   if (!Number.isFinite(height) || height <= 0) {
     errors.push({ code: 'INVALID_HEIGHT', message: '세로는 0보다 큰 값이어야 합니다.' });
+  } else if (shapeSpec) {
+    const finished = finishedLength(height, sides);
+    if (finished <= 0) {
+      errors.push({
+        code: 'CUT_LENGTH_TOO_SMALL',
+        message: `몰딩 ${MOLDING_DEDUCTION * sides}mm 차감 후 완성 치수가 0 이하입니다. (세로 ${height})`,
+      });
+    }
+    // 세로 상한은 두지 않는다. 유효길이를 넘으면 나눠서 이어 붙인다(lengthPlan).
   }
-  // 세로 상한은 두지 않는다. 유효길이를 넘으면 나눠서 이어 붙인다(lengthPlan).
   return errors;
 }
 
@@ -258,7 +269,7 @@ export function calculateItem(input, boards = null) {
   const { width, height, useMolding = false, bottomMolding = false, trimEnds = false } = input;
   const sides = moldingSides(input);
 
-  const finished = finishedLength(height);
+  const finished = finishedLength(height, sides);
   const usableLength = usableSheetLength(shapeSpec, trimEnds);
   const plan = boards === null
     ? widthPlan(width, shapeSpec.effectiveWidth)
@@ -605,14 +616,13 @@ export function wallLayout(item) {
   ];
 
   const rows = [];
-  if (item.input.useMolding) rows.push({ kind: 'molding', length: MOLDING_THICKNESS });
+  if (item.input.useMolding) rows.push({ kind: 'molding', length: MOLDING_DEDUCTION });
   for (const seg of item.segments) {
     rows.push({ kind: 'piece', length: seg.finishedLength, cutLength: seg.cutLength });
   }
-  if (item.input.bottomMolding) rows.push({ kind: 'molding', length: MOLDING_THICKNESS });
+  if (item.input.bottomMolding) rows.push({ kind: 'molding', length: MOLDING_DEDUCTION });
 
-  /** height = 보드 + 몰딩 전체 높이 (행 길이 합) */
-  return { width: item.width, covered, overhang, height: item.height + item.moldingSides * MOLDING_THICKNESS, columns, rows };
+  return { width: item.width, covered, overhang, height: item.height, columns, rows };
 }
 
 /**
