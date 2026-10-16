@@ -512,6 +512,21 @@ test('남는 원장 칸은 재단면끼리 나눠 쓰므로 주문 전체로 판
   ]);
   assert.deepEqual(half.boards.map((b) => b.sheets), [2]);
   assert.equal(half.stripOrders.length, 0);
+
+  // 폭 100 짜리 면(원장 0장)도 다른 면 원장의 남는 칸을 쓴다
+  const narrow = calculate([
+    { shape: 'square', color: '화이트', width: 100, height: 800 },
+    { shape: 'square', color: '화이트', width: 250, height: 800 },
+  ]);
+  assert.deepEqual(narrow.boards.map((b) => b.sheets), [1]);
+  assert.equal(narrow.stripOrders.length, 0);
+});
+
+test('세로를 나누면 원장을 1장 더 사는 게 낱개보다 쌀 수 있다 — 금액으로 고른다', () => {
+  // 410 × 3000 → 2435 + 550. 2435 조각은 원장당 1개라 낱개 2개가 낱개 자재 2개를 먹는다.
+  // 300 × 1 + 100 × 2: 원장 2 + 낱개 3 / 300 × 2: 원장 3, 낱개 0 → 후자가 싸다
+  const [item] = calculate([{ shape: 'square', color: '화이트', width: 410, height: 3000 }]).items;
+  assert.deepEqual(item.widthPlan, { boards: 2, strips: 0, covered: 600, overhang: 190 });
 });
 
 test('몰딩 자투리는 색상별 합계', () => {

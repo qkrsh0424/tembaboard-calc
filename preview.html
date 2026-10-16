@@ -318,6 +318,7 @@ const TALK_URL = 'https://talk.naver.com/w48val'; // 아르빙
  */
 
 
+
 /** 모양별 원장 규격. 유효폭 = 실측폭(옆판 겹침 손실 없음). */
 const SHAPES = {
   half:   { key: 'half',   label: '반달', effectiveWidth: 295, sheetLength: 2440 },
@@ -678,22 +679,27 @@ function bucketsOf(items) {
 
 const bitCount = (n) => n.toString(2).replace(/0/g, '').length;
 
-function barTotals(items) {
-  const t = { [STOCK_BOARD]: 0, [STOCK_STRIP]: 0, cuts: 0 };
-  for (const b of bucketsOf(items).values()) t[b.kind] += b.bars;
-  for (const it of items) t.cuts += it.cutCount;
-  return t;
+// 원장·낱개·재단 금액 합. 남는 원장 칸을 쓸지 고를 때만 쓴다 (몰딩은 폭으로 정해져 무관).
+// ponytail: 단가 미정(null)은 0 으로 본다. 미정 항목이 생기면 그 자재를 공짜로 보고 고른다.
+function materialCost(items) {
+  let won = 0;
+  for (const b of bucketsOf(items).values()) {
+    won += b.bars * ((b.kind === STOCK_BOARD ? boardPrice(b.shapeKey, b.color) : stripPrice(b.shapeKey)) ?? 0);
+  }
+  return won + items.reduce((n, it) => n + it.cutCount, 0) * (cuttingPrice() ?? 0);
 }
 
 function calculate(inputs) {
   // 2.3 남는 원장 칸: 이미 사는 원장에 빈 칸이 있으면 낱개 대신 원장 조각을 쓴다.
   // 원장은 재단면끼리 나눠 쓰므로 주문 전체로 본다. 여러 면을 같이 바꿔야 낱개가 빠지는
   // 경우가 있어(반달 600 × 2면) 바꿀 면의 조합을 전부 따진다.
-  // 고르는 순서: 원장 장수 → 낱개 개수 → 재단 횟수 → 바꾼 면 수(넘치는 폭이 덜 늘게).
+  // 고르는 기준: 원장 + 낱개 + 재단 금액이 가장 적은 것. 같으면 바꾼 면 수가 적은 것(넘치는 폭이 덜 늘게).
+  // 장수가 아니라 금액으로 보는 이유: 세로를 나누면 낱개가 조각마다 따로 들어서
+  // 원장을 1장 더 사는 게 더 쌀 때가 있다 (사각 410 × 3000).
   // ponytail: 낱개 쓰는 면이 12개를 넘으면 앞 12개만 따진다 (2^12 조합).
   let items = inputs.map((input) => calculateItem(input));
   const candidates = items.map((it, i) => i)
-    .filter((i) => items[i].widthPlan.strips > 0 && items[i].widthPlan.boards > 0)
+    .filter((i) => items[i].widthPlan.strips > 0)
     .slice(0, 12);
   if (candidates.length > 0) {
     const extra = new Map(candidates.map((i) => [i, calculateItem(inputs[i], true)]));
@@ -701,8 +707,7 @@ function calculate(inputs) {
     for (let mask = 0; mask < 1 << candidates.length; mask++) {
       const trial = [...items];
       candidates.forEach((i, bit) => { if (mask >> bit & 1) trial[i] = extra.get(i); });
-      const t = barTotals(trial);
-      const score = [t[STOCK_BOARD], t[STOCK_STRIP], t.cuts, bitCount(mask)];
+      const score = [materialCost(trial), bitCount(mask)];
       const k = best ? score.findIndex((v, j) => v !== best.score[j]) : -1;
       if (!best || (k >= 0 && score[k] < best.score[k])) best = { score, trial };
     }
