@@ -481,15 +481,37 @@ test('합산된 사양은 자투리도 합산 기준으로 다시 계산한다',
 
 test('이미 사는 원장에 남는 칸이 있으면 낱개 대신 원장 조각을 쓴다', () => {
   // 4060 = 300 × 13 + 100 × 2 였지만, 원장 5장(15칸) 중 13칸만 써서 2칸이 남는다.
-  const item = calculateItem({ shape: 'square', color: '화이트', width: 4060, height: 800 });
+  const [item] = calculate([{ shape: 'square', color: '화이트', width: 4060, height: 800 }]).items;
   assert.deepEqual(item.widthPlan, { boards: 14, strips: 0, covered: 4200, overhang: 140 });
   assert.equal(item.sheets, 5);
   assert.equal(item.strips, 0);
   assert.equal(item.cutCount, 42);
 
   // 원장이 한 장 더 필요해지면 낱개를 그대로 쓴다 (원장당 1개)
-  const tall = calculateItem({ shape: 'half', color: '화이트', width: 1200, height: 2000, useMolding: true });
+  const [tall] = calculate([{ shape: 'half', color: '화이트', width: 1200, height: 2000, useMolding: true }]).items;
   assert.deepEqual(tall.widthPlan, { boards: 4, strips: 1, covered: 1280, overhang: 80 });
+});
+
+test('남는 원장 칸은 재단면끼리 나눠 쓰므로 주문 전체로 판단한다', () => {
+  // 400×800 두 면: 원장 1장(3칸)에 300 조각 2개 + 낱개 1개(3칸)에 100 조각 2개가 가장 싸다.
+  // 면마다 따로 보고 둘 다 원장 조각을 쓰면 4칸이라 원장이 2장이 된다.
+  const two = calculate([
+    { shape: 'square', color: '화이트', width: 400, height: 800 },
+    { shape: 'square', color: '화이트', width: 400, height: 800 },
+  ]);
+  assert.deepEqual(two.boards.map((b) => b.sheets), [1]);
+  assert.deepEqual(two.stripOrders.map((s) => s.bars), [1]);
+
+  // 넘치는 폭만 늘고 아끼는 게 없으면 바꾸지 않는다
+  assert.deepEqual(two.items.map((i) => i.widthPlan.strips), [1, 1]);
+
+  // 반달 600×800 두 면: 하나만 바꾸면 아끼는 게 없지만 둘 다 바꾸면 6칸 = 원장 2장, 낱개 0
+  const half = calculate([
+    { shape: 'half', color: '화이트', width: 600, height: 800 },
+    { shape: 'half', color: '화이트', width: 600, height: 800 },
+  ]);
+  assert.deepEqual(half.boards.map((b) => b.sheets), [2]);
+  assert.equal(half.stripOrders.length, 0);
 });
 
 test('몰딩 자투리는 색상별 합계', () => {

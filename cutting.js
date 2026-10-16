@@ -121,16 +121,8 @@ export function widthPlan(width, effectiveWidth) {
   };
 }
 
-// 낱개를 사기 전에, 이미 사야 하는 원장에 남는 조각이 있으면 원장 조각 1개로 대신한다.
-// 원장 장수는 그대로이고 낱개·재단 횟수만 준다. 대신 넘치는 폭은 늘어난다.
-// 예) 사각 4060 × 800 → 300 × 13 + 100 × 2 (원장 5 + 낱개 1)
-//     → 300 × 14 (원장 5, 15칸 중 14칸 사용). 4200, 140 넘침
-// 세로가 나눠졌으면 모든 조각에서 원장 장수가 안 늘어날 때만 바꾼다(열 구성은 조각끼리 같아야 하므로).
-// ponytail: 재단면 하나 안에서만 본다. 여러 재단면이 같은 원장을 나눠 쓰는 경우는 안 본다.
-export function useSpareBoard(plan, perSheets, effectiveWidth, width) {
-  if (plan.strips === 0 || plan.boards === 0) return plan;
-  const free = perSheets.every((n) => n > 0 && Math.ceil((plan.boards + 1) / n) === Math.ceil(plan.boards / n));
-  if (!free) return plan;
+// 낱개 대신 원장 조각 1개를 더 쓴 배치. 쓸지 말지는 calculate() 가 주문 전체를 보고 정한다(2.3).
+export function withExtraBoard(plan, effectiveWidth, width) {
   const boards = plan.boards + 1;
   const covered = boards * effectiveWidth;
   return { boards, strips: 0, covered, overhang: covered - width };
@@ -251,8 +243,11 @@ export function validateItem(input) {
   return errors;
 }
 
-/** 항목 1건 계산. 검증 실패 시 CuttingError 를 던진다. */
-export function calculateItem(input) {
+/**
+ * 항목 1건 계산. 검증 실패 시 CuttingError 를 던진다.
+ * extraBoard: 낱개 대신 원장 조각 1개를 더 쓴다 (withExtraBoard). calculate() 가 정한다.
+ */
+export function calculateItem(input, extraBoard = false) {
   const errors = validateItem(input);
   if (errors.length > 0) {
     const err = new CuttingError(errors[0].code, errors[0].message);
@@ -265,15 +260,14 @@ export function calculateItem(input) {
 
   const finished = finishedLength(height, useMolding);
   const usableLength = usableSheetLength(shapeSpec, trimEnds);
-  const lengths = lengthPlan(finished, usableLength);
-  const perSheets = lengths.map((f) => piecesPerSheet(f + CUT_LOSS, usableLength));
-  const plan = useSpareBoard(widthPlan(width, shapeSpec.effectiveWidth), perSheets, shapeSpec.effectiveWidth, width);
+  const basePlan = widthPlan(width, shapeSpec.effectiveWidth);
+  const plan = extraBoard ? withExtraBoard(basePlan, shapeSpec.effectiveWidth, width) : basePlan;
   const pieces = plan.boards + plan.strips;
 
   // 세로가 유효길이를 넘으면 여러 조각으로 나눠 이어 붙인다.
-  const segments = lengths.map((segFinished, i) => {
+  const segments = lengthPlan(finished, usableLength).map((segFinished) => {
     const length = segFinished + CUT_LOSS;
-    const perSheet = perSheets[i];
+    const perSheet = piecesPerSheet(length, usableLength);
     // 원장과 낱개는 자재가 다르므로 소요 수량도 따로 센다.
     const stocks = [
       { kind: STOCK_BOARD, stockWidth: shapeSpec.effectiveWidth, pieces: plan.boards },
@@ -334,9 +328,8 @@ function bySpec(a, b) {
   );
 }
 
-export function calculate(inputs) {
-  const items = inputs.map(calculateItem);
-
+// 같은 자재(모양 + 색상 + 재단길이 + 끝단정리 + 원장/낱개)끼리 묶어 소요 수량을 센다.
+function bucketsOf(items) {
   // 원장당 개수는 끝단정리 여부에 따라 달라지므로 소요 수량 계산은 trimEnds 까지 묶는다.
   const buckets = new Map();
   for (const item of items) {
@@ -368,6 +361,42 @@ export function calculate(inputs) {
     // (2건을 한 자재에 몰아 뽑으면 자투리도 줄어들기 때문)
     bucket.sheetTails = sheetTails(bucket.pieces, bucket.piecesPerSheet, bucket.usableLength, bucket.cutLength);
   }
+  return buckets;
+}
+
+const bitCount = (n) => n.toString(2).replace(/0/g, '').length;
+
+function barTotals(items) {
+  const t = { [STOCK_BOARD]: 0, [STOCK_STRIP]: 0, cuts: 0 };
+  for (const b of bucketsOf(items).values()) t[b.kind] += b.bars;
+  for (const it of items) t.cuts += it.cutCount;
+  return t;
+}
+
+export function calculate(inputs) {
+  // 2.3 남는 원장 칸: 이미 사는 원장에 빈 칸이 있으면 낱개 대신 원장 조각을 쓴다.
+  // 원장은 재단면끼리 나눠 쓰므로 주문 전체로 본다. 여러 면을 같이 바꿔야 낱개가 빠지는
+  // 경우가 있어(반달 600 × 2면) 바꿀 면의 조합을 전부 따진다.
+  // 고르는 순서: 원장 장수 → 낱개 개수 → 재단 횟수 → 바꾼 면 수(넘치는 폭이 덜 늘게).
+  // ponytail: 낱개 쓰는 면이 12개를 넘으면 앞 12개만 따진다 (2^12 조합).
+  let items = inputs.map((input) => calculateItem(input));
+  const candidates = items.map((it, i) => i)
+    .filter((i) => items[i].widthPlan.strips > 0 && items[i].widthPlan.boards > 0)
+    .slice(0, 12);
+  if (candidates.length > 0) {
+    const extra = new Map(candidates.map((i) => [i, calculateItem(inputs[i], true)]));
+    let best = null;
+    for (let mask = 0; mask < 1 << candidates.length; mask++) {
+      const trial = [...items];
+      candidates.forEach((i, bit) => { if (mask >> bit & 1) trial[i] = extra.get(i); });
+      const t = barTotals(trial);
+      const score = [t[STOCK_BOARD], t[STOCK_STRIP], t.cuts, bitCount(mask)];
+      const k = best ? score.findIndex((v, j) => v !== best.score[j]) : -1;
+      if (!best || (k >= 0 && score[k] < best.score[k])) best = { score, trial };
+    }
+    items = best.trial;
+  }
+  const buckets = bucketsOf(items);
 
   // 재단 지시서: 모양 + 색상 + 재단길이 + 자재
   const cutMap = new Map();
