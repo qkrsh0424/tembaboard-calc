@@ -517,6 +517,17 @@ test('원장/낱개는 재단면끼리 나눠 쓰므로 주문 전체로 고른�
   assert.deepEqual([one.widthPlan.boards, one.widthPlan.strips], [0, 3]);
 });
 
+test('세로가 달라도 조각 길이가 같으면 자재를 나눠 쓰는 걸로 보고 고른다', () => {
+  // 세로 3000 → 2435 + 565. 세로 565 면과 565 조각 자재를 나눠 쓴다.
+  // 따로 고르면 565 면이 원장 3장(85,500), 같이 보면 전부 낱개(84,500)
+  const result = calculate([
+    { shape: 'square', color: '화이트', width: 100, height: 3000 },
+    { shape: 'square', color: '화이트', width: 850, height: 565 },
+  ]);
+  assert.deepEqual(result.items.map((i) => i.widthPlan.boards), [0, 0]);
+  assert.equal(result.boards.length, 0);
+});
+
 test('몰딩 자투리는 색상별 합계', () => {
   const result = calculate([
     { shape: 'square', color: '화이트', width: 2500, height: 800, useMolding: true },

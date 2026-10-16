@@ -369,18 +369,25 @@ function bucketsOf(items) {
 
 // --- 2.3 원장/낱개 배치 고르기 ---------------------------------------------
 // 재단면마다 원장을 몇 장 쓸지(나머지는 낱개)를 주문 전체 금액이 가장 적게 고른다.
-// 자재는 같은 사양(모양 + 색상 + 세로 + 끝단정리)끼리 나눠 쓰므로 그 묶음마다 따진다.
-// 금액은 묶음의 원장 조각 합 B, 낱개 조각 합 S 로만 정해지므로 (B, S) 상태로 DP 한다.
+// 자재는 조각 길이가 같으면(모양 + 색상 + 재단길이 + 끝단정리, bucketsOf 와 같은 기준) 나눠 쓴다.
+// 세로가 달라도 나눈 조각 길이가 같으면 묶이므로(3000 의 565 조각과 565 한 장),
+// 그런 재단면끼리 이어서 한 묶음으로 따진다.
+// 금액은 묶음 안 조각 길이별 원장 조각 합·낱개 조각 합으로만 정해지므로 그 합을 상태로 DP 한다.
 // 같은 금액이면 기본 배치(widthPlan)에서 바꾼 면이 적은 쪽 → 넘치는 폭이 적은 쪽.
-// ponytail: 세로가 달라도 나눈 조각 길이가 같으면 실제로는 자재를 나눠 쓸 수 있는데
-// (3000 의 2435 조각과 2435 한 장) 묶음이 달라 따로 고른다. 수량 집계는 bucketsOf 가 합쳐서 맞다.
-function chooseBoards(inputs, items) {
+function chooseBoards(items) {
   const chosen = items.map((it) => it.widthPlan.boards);
+  const stockKey = (it, seg) => [it.shape.key, it.color.name, seg.cutLength, it.input.trimEnds].join('|');
+
+  // 조각 길이를 공유하는 재단면끼리 묶는다 (union-find)
+  const parent = items.map((_, i) => i);
+  const root = (i) => (parent[i] === i ? i : (parent[i] = root(parent[i])));
+  const owner = new Map();
+  items.forEach((it, i) => it.segments.forEach((seg) => {
+    const k = stockKey(it, seg);
+    if (owner.has(k)) parent[root(i)] = root(owner.get(k)); else owner.set(k, i);
+  }));
   const groups = new Map();
-  items.forEach((it, i) => {
-    const key = [it.shape.key, it.color.name, it.finishedLength, it.input.trimEnds].join('|');
-    groups.set(key, [...(groups.get(key) ?? []), i]);
-  });
+  items.forEach((_, i) => groups.set(root(i), [...(groups.get(root(i)) ?? []), i]));
 
   for (const idx of groups.values()) {
     const first = items[idx[0]];
@@ -388,25 +395,39 @@ function chooseBoards(inputs, items) {
     const bp = boardPrice(first.shape.key, first.color.name) ?? 0;
     const sp = stripPrice(first.shape.key) ?? 0;
     const cp = cuttingPrice() ?? 0;
-    const cost = (B, S) => first.segments.reduce((won, seg) =>
-      won + Math.ceil(B / seg.piecesPerSheet) * bp + Math.ceil(S / seg.piecesPerSheet) * sp
-        + Math.floor(first.usableLength / seg.cutLength) * (B + S) * cp, 0);
 
-    // 상태 "B|S" → { changed, overhang, picks }
-    let states = new Map([['0|0', { B: 0, S: 0, changed: 0, overhang: 0, picks: [] }]]);
-    for (const i of idx) {
+    // 묶음 안 조각 길이 목록. 재단면마다 길이별 조각 배수(5000 → 2435 × 2 + 130)를 센다.
+    const lengths = [];
+    const mult = idx.map((i) => {
+      const m = new Map();
+      for (const seg of items[i].segments) {
+        let L = lengths.findIndex((x) => x.cutLength === seg.cutLength);
+        if (L < 0) L = lengths.push(seg) - 1;
+        m.set(L, (m.get(L) ?? 0) + 1);
+      }
+      return m;
+    });
+    const cost = (tot) => lengths.reduce((won, seg, L) => {
+      const B = tot[2 * L], S = tot[2 * L + 1];
+      return won + Math.ceil(B / seg.piecesPerSheet) * bp + Math.ceil(S / seg.piecesPerSheet) * sp
+        + Math.floor(first.usableLength / seg.cutLength) * (B + S) * cp;
+    }, 0);
+
+    // 상태: 길이별 [원장 합, 낱개 합] → { changed, overhang, picks }
+    let states = new Map([['', { tot: new Array(lengths.length * 2).fill(0), changed: 0, overhang: 0, picks: [] }]]);
+    idx.forEach((i, n) => {
       const { width } = items[i];
       const base = items[i].widthPlan.boards;
       const next = new Map();
       for (const st of states.values()) {
         for (let b = 0; b <= Math.ceil(width / W); b++) {
           const p = planWithBoards(width, W, b);
+          const tot = [...st.tot];
+          for (const [L, k] of mult[n]) { tot[2 * L] += k * p.boards; tot[2 * L + 1] += k * p.strips; }
           const cand = {
-            B: st.B + p.boards, S: st.S + p.strips,
-            changed: st.changed + (b !== base), overhang: st.overhang + p.overhang,
-            picks: [...st.picks, b],
+            tot, changed: st.changed + (b !== base), overhang: st.overhang + p.overhang, picks: [...st.picks, b],
           };
-          const key = `${cand.B}|${cand.S}`;
+          const key = tot.join('|');
           const old = next.get(key);
           if (!old || cand.changed < old.changed || (cand.changed === old.changed && cand.overhang < old.overhang)) {
             next.set(key, cand);
@@ -414,10 +435,10 @@ function chooseBoards(inputs, items) {
         }
       }
       states = next;
-    }
+    });
     let best = null;
     for (const st of states.values()) {
-      const score = [cost(st.B, st.S), st.changed, st.overhang];
+      const score = [cost(st.tot), st.changed, st.overhang];
       const k = best ? score.findIndex((v, j) => v !== best.score[j]) : -1;
       if (!best || (k >= 0 && score[k] < best.score[k])) best = { score, picks: st.picks };
     }
@@ -429,7 +450,7 @@ function chooseBoards(inputs, items) {
 export function calculate(inputs) {
   // 2.3 원장/낱개 배치는 주문 전체 금액으로 고른다 (chooseBoards).
   const base = inputs.map((input) => calculateItem(input));
-  const items = chooseBoards(inputs, base)
+  const items = chooseBoards(base)
     .map((boards, i) => (boards === base[i].widthPlan.boards ? base[i] : calculateItem(inputs[i], boards)));
   const buckets = bucketsOf(items);
 
