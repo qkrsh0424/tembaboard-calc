@@ -794,11 +794,12 @@ function widthPlan(width, effectiveWidth) {
   };
 }
 
-// 낱개 대신 원장 조각 1개를 더 쓴 배치. 쓸지 말지는 calculate() 가 주문 전체를 보고 정한다(2.3).
-function withExtraBoard(plan, effectiveWidth, width) {
-  const boards = plan.boards + 1;
-  const covered = boards * effectiveWidth;
-  return { boards, strips: 0, covered, overhang: covered - width };
+// 원장 장수를 정해 두고 남는 폭을 낱개로 메운 배치. 몇 장으로 할지는 calculate() 가
+// 주문 전체 금액을 보고 정한다(2.3).
+function planWithBoards(width, effectiveWidth, boards) {
+  const strips = Math.max(0, Math.ceil((width - boards * effectiveWidth) / STRIP_WIDTH));
+  const covered = boards * effectiveWidth + strips * STRIP_WIDTH;
+  return { boards, strips, covered, overhang: covered - width };
 }
 
 /** 재단 조각 총 개수 (원장 조각 + 낱개 조각) */
@@ -918,9 +919,9 @@ function validateItem(input) {
 
 /**
  * 항목 1건 계산. 검증 실패 시 CuttingError 를 던진다.
- * extraBoard: 낱개 대신 원장 조각 1개를 더 쓴다 (withExtraBoard). calculate() 가 정한다.
+ * boards: 원장 장수를 정해 준다 (planWithBoards). 없으면 widthPlan 기본 배치. calculate() 가 정한다.
  */
-function calculateItem(input, extraBoard = false) {
+function calculateItem(input, boards = null) {
   const errors = validateItem(input);
   if (errors.length > 0) {
     const err = new CuttingError(errors[0].code, errors[0].message);
@@ -933,8 +934,9 @@ function calculateItem(input, extraBoard = false) {
 
   const finished = finishedLength(height, useMolding);
   const usableLength = usableSheetLength(shapeSpec, trimEnds);
-  const basePlan = widthPlan(width, shapeSpec.effectiveWidth);
-  const plan = extraBoard ? withExtraBoard(basePlan, shapeSpec.effectiveWidth, width) : basePlan;
+  const plan = boards === null
+    ? widthPlan(width, shapeSpec.effectiveWidth)
+    : planWithBoards(width, shapeSpec.effectiveWidth, boards);
   const pieces = plan.boards + plan.strips;
 
   // 세로가 유효길이를 넘으면 여러 조각으로 나눠 이어 붙인다.
@@ -1037,42 +1039,70 @@ function bucketsOf(items) {
   return buckets;
 }
 
-const bitCount = (n) => n.toString(2).replace(/0/g, '').length;
+// --- 2.3 원장/낱개 배치 고르기 ---------------------------------------------
+// 재단면마다 원장을 몇 장 쓸지(나머지는 낱개)를 주문 전체 금액이 가장 적게 고른다.
+// 자재는 같은 사양(모양 + 색상 + 세로 + 끝단정리)끼리 나눠 쓰므로 그 묶음마다 따진다.
+// 금액은 묶음의 원장 조각 합 B, 낱개 조각 합 S 로만 정해지므로 (B, S) 상태로 DP 한다.
+// 같은 금액이면 기본 배치(widthPlan)에서 바꾼 면이 적은 쪽 → 넘치는 폭이 적은 쪽.
+// ponytail: 세로가 달라도 나눈 조각 길이가 같으면 실제로는 자재를 나눠 쓸 수 있는데
+// (3000 의 2435 조각과 2435 한 장) 묶음이 달라 따로 고른다. 수량 집계는 bucketsOf 가 합쳐서 맞다.
+function chooseBoards(inputs, items) {
+  const chosen = items.map((it) => it.widthPlan.boards);
+  const groups = new Map();
+  items.forEach((it, i) => {
+    const key = [it.shape.key, it.color.name, it.finishedLength, it.input.trimEnds].join('|');
+    groups.set(key, [...(groups.get(key) ?? []), i]);
+  });
 
-// 원장·낱개·재단 금액 합. 남는 원장 칸을 쓸지 고를 때만 쓴다 (몰딩은 폭으로 정해져 무관).
-// ponytail: 단가 미정(null)은 0 으로 본다. 미정 항목이 생기면 그 자재를 공짜로 보고 고른다.
-function materialCost(items) {
-  let won = 0;
-  for (const b of bucketsOf(items).values()) {
-    won += b.bars * ((b.kind === STOCK_BOARD ? boardPrice(b.shapeKey, b.color) : stripPrice(b.shapeKey)) ?? 0);
+  for (const idx of groups.values()) {
+    const first = items[idx[0]];
+    const W = first.shape.effectiveWidth;
+    const bp = boardPrice(first.shape.key, first.color.name) ?? 0;
+    const sp = stripPrice(first.shape.key) ?? 0;
+    const cp = cuttingPrice() ?? 0;
+    const cost = (B, S) => first.segments.reduce((won, seg) =>
+      won + Math.ceil(B / seg.piecesPerSheet) * bp + Math.ceil(S / seg.piecesPerSheet) * sp
+        + Math.floor(first.usableLength / seg.cutLength) * (B + S) * cp, 0);
+
+    // 상태 "B|S" → { changed, overhang, picks }
+    let states = new Map([['0|0', { B: 0, S: 0, changed: 0, overhang: 0, picks: [] }]]);
+    for (const i of idx) {
+      const { width } = items[i];
+      const base = items[i].widthPlan.boards;
+      const next = new Map();
+      for (const st of states.values()) {
+        for (let b = 0; b <= Math.ceil(width / W); b++) {
+          const p = planWithBoards(width, W, b);
+          const cand = {
+            B: st.B + p.boards, S: st.S + p.strips,
+            changed: st.changed + (b !== base), overhang: st.overhang + p.overhang,
+            picks: [...st.picks, b],
+          };
+          const key = `${cand.B}|${cand.S}`;
+          const old = next.get(key);
+          if (!old || cand.changed < old.changed || (cand.changed === old.changed && cand.overhang < old.overhang)) {
+            next.set(key, cand);
+          }
+        }
+      }
+      states = next;
+    }
+    let best = null;
+    for (const st of states.values()) {
+      const score = [cost(st.B, st.S), st.changed, st.overhang];
+      const k = best ? score.findIndex((v, j) => v !== best.score[j]) : -1;
+      if (!best || (k >= 0 && score[k] < best.score[k])) best = { score, picks: st.picks };
+    }
+    idx.forEach((i, n) => { chosen[i] = best.picks[n]; });
   }
-  return won + items.reduce((n, it) => n + it.cutCount, 0) * (cuttingPrice() ?? 0);
+  return chosen;
 }
 
 function calculate(inputs) {
-  // 2.3 남는 원장 칸: 이미 사는 원장에 빈 칸이 있으면 낱개 대신 원장 조각을 쓴다.
-  // 원장은 재단면끼리 나눠 쓰므로 주문 전체로 본다. 여러 면을 같이 바꿔야 낱개가 빠지는
-  // 경우가 있어(반달 600 × 2면) 바꿀 면의 조합을 전부 따진다.
-  // 고르는 기준: 원장 + 낱개 + 재단 금액이 가장 적은 것. 같으면 바꾼 면 수가 적은 것(넘치는 폭이 덜 늘게).
-  // 장수가 아니라 금액으로 보는 이유: 세로를 나누면 낱개가 조각마다 따로 들어서
-  // 원장을 1장 더 사는 게 더 쌀 때가 있다 (사각 410 × 3000).
-  // ponytail: 낱개 쓰는 면이 12개를 넘으면 앞 12개만 따진다 (2^12 조합).
-  let items = inputs.map((input) => calculateItem(input));
-  const candidates = items.map((it, i) => i)
-    .filter((i) => items[i].widthPlan.strips > 0)
-    .slice(0, 12);
-  if (candidates.length > 0) {
-    const extra = new Map(candidates.map((i) => [i, calculateItem(inputs[i], true)]));
-    let best = null;
-    for (let mask = 0; mask < 1 << candidates.length; mask++) {
-      const trial = [...items];
-      candidates.forEach((i, bit) => { if (mask >> bit & 1) trial[i] = extra.get(i); });
-      const score = [materialCost(trial), bitCount(mask)];
-      const k = best ? score.findIndex((v, j) => v !== best.score[j]) : -1;
-      if (!best || (k >= 0 && score[k] < best.score[k])) best = { score, trial };
-    }
-    items = best.trial;
-  }
+  // 2.3 원장/낱개 배치는 주문 전체 금액으로 고른다 (chooseBoards).
+  const base = inputs.map((input) => calculateItem(input));
+  const items = chooseBoards(inputs, base)
+    .map((boards, i) => (boards === base[i].widthPlan.boards ? base[i] : calculateItem(inputs[i], boards)));
   const buckets = bucketsOf(items);
 
   // 재단 지시서: 모양 + 색상 + 재단길이 + 자재

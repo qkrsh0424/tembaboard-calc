@@ -50,19 +50,19 @@ test('사각 견적 — 낱개까지 합산', () => {
 });
 
 test('재단비는 재단 횟수만큼 붙는다', () => {
-  const result = calculate([{ shape: 'square', color: '화이트', width: 300, height: 800 }]);
-  // 원장 1장 45,000 + 재단 floor(2440/805) × 1 = 3회 × 500
-  assert.ok(formatQuote(result).includes('재단 필요해요 > 톡톡으로 말씀주세요 : 3개 × 500원 = 1,500원'));
-  assert.equal(quote(result).total, 46500);
+  const result = calculate([{ shape: 'square', color: '화이트', width: 600, height: 1200 }]);
+  // 원장 1장 45,000 + 재단 floor(2440/1205) × 2 = 4회 × 500
+  assert.ok(formatQuote(result).includes('재단 필요해요 > 톡톡으로 말씀주세요 : 4개 × 500원 = 2,000원'));
+  assert.equal(quote(result).total, 47000);
 });
 
 test('단가를 모르는 항목은 합계에서 빠지고 그렇게 적는다', () => {
   const saved = PRICES.cutting;
   PRICES.cutting = null;
   try {
-    const result = calculate([{ shape: 'square', color: '화이트', width: 300, height: 800 }]);
+    const result = calculate([{ shape: 'square', color: '화이트', width: 300, height: 2000 }]);
     const text = formatQuote(result);
-    assert.ok(text.includes('재단 필요해요 > 톡톡으로 말씀주세요 : 3개 × 단가 미정'), text);
+    assert.ok(text.includes('재단 필요해요 > 톡톡으로 말씀주세요 : 1개 × 단가 미정'), text);
     assert.ok(text.includes('※ 단가 미정'), text);
     assert.equal(quote(result).total, 45000, '원장 1장만 합산');
   } finally {

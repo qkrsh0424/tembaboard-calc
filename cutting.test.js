@@ -146,7 +146,8 @@ test('TC-5 보강: 사양이 다르면 줄을 나눈다', () => {
   assert.equal(
     formatCuttingSheet(result),
     [
-      '사각-화이트 : 1200 - 3조각',
+      '사각-화이트 : 1200 - 2조각',      // 900 = 300 × 2 + 100 × 3 이 원장 3장보다 싸다
+      '사각-화이트 100폭 : 1200 - 3조각',
       '반달-진한티크 : 1985 - 4조각',
       '반달-진한티크 100폭 : 1985 - 1조각',
     ].join('\n'),
@@ -295,7 +296,7 @@ test('같은 스토어 옵션에 색이 섞이면 내역을 덧붙인다', () =>
 
   const text = formatOrderSummary(result);
   assert.ok(text.includes('마감몰딩 1200mm 기준 : 2개 (화이트 1, 핑크 1)'), text);
-  assert.ok(text.includes('사각템바 (100x2440x12T) : 1개'), text);
+  assert.ok(text.includes('사각템바 (100x2440x12T) : 2개 (화이트 1, 핑크 1)'), text);
 });
 
 // --- 재단 손실 5mm ----------------------------------------------------------
@@ -372,11 +373,12 @@ test('관리자 주문요약 — 같은 자재에 길이가 여럿이면 / 로 �
     { shape: 'square', color: '연한오크', width: 900, height: 855 },
   ]);
 
-  // 2415 → 자재당 1개, 3조각 → 3개. 855 → 자재당 2개, 3조각 → 2개. 합 5개
+  // 2415 → 자재당 1개, 3조각 → 3개. 855 → 자재당 2개, 300 × 2 + 100 × 3 이 더 싸서 원장 1개 + 낱개 2개.
   assert.equal(
     formatAdminOrder(result),
-    '붙이는 사각템바 12T_30cm\t300*2440*12T\tJA8401-연한오크\t5\t'
-    + '300*855*12T 3조각 / 300*2415*12T 3조각',
+    '붙이는 사각템바 12T_30cm\t300*2440*12T\tJA8401-연한오크\t4\t'
+    + '300*855*12T 2조각 / 300*2415*12T 3조각\n'
+    + '붙이는 사각템바 12T_10cm\t100*2440*12T\tJA8401-연한오크\t2\t100*855*12T 3조각',
   );
 });
 
@@ -468,65 +470,51 @@ test('TC-3 자투리 — 끝단정리 O 면 유효길이가 줄어 자투리도 
 
 test('합산된 사양은 자투리도 합산 기준으로 다시 계산한다', () => {
   const result = calculate([
-    { shape: 'half', color: '화이트', width: 295, height: 800 },
-    { shape: 'half', color: '화이트', width: 295, height: 800 },
+    { shape: 'half', color: '화이트', width: 295, height: 1200 },
+    { shape: 'half', color: '화이트', width: 295, height: 1200 },
   ]);
 
-  // 1 + 1 = 2조각 → 자재당 3개 → 원장 1개. 따로 뽑았으면 자투리가 2개 나왔다.
+  // 1 + 1 = 2조각 → 자재당 2개 → 원장 1개. 따로 뽑았으면 자투리가 2개 나왔다.
   assert.equal(
     formatLeftovers(result),
-    '반달-화이트 : 가로 295 X 세로 830, 1개 (세로 자르고 남은 부분)', // 2440 - 805×2
+    '반달-화이트 : 가로 295 X 세로 30, 1개 (세로 자르고 남은 부분)', // 2440 - 1205×2
   );
 });
 
-test('이미 사는 원장에 남는 칸이 있으면 낱개 대신 원장 조각을 쓴다', () => {
-  // 4060 = 300 × 13 + 100 × 2 였지만, 원장 5장(15칸) 중 13칸만 써서 2칸이 남는다.
-  const [item] = calculate([{ shape: 'square', color: '화이트', width: 4060, height: 800 }]).items;
-  assert.deepEqual(item.widthPlan, { boards: 14, strips: 0, covered: 4200, overhang: 140 });
-  assert.equal(item.sheets, 5);
-  assert.equal(item.strips, 0);
-  assert.equal(item.cutCount, 42);
+test('원장/낱개 배치는 주문 전체 금액이 가장 싼 쪽을 고른다', () => {
+  const plan = (inputs) => calculate(inputs).items.map((i) => [i.widthPlan.boards, i.widthPlan.strips]);
+  const sq = (width, height) => ({ shape: 'square', color: '화이트', width, height });
 
-  // 원장이 한 장 더 필요해지면 낱개를 그대로 쓴다 (원장당 1개)
-  const [tall] = calculate([{ shape: 'half', color: '화이트', width: 1200, height: 2000, useMolding: true }]).items;
-  assert.deepEqual(tall.widthPlan, { boards: 4, strips: 1, covered: 1280, overhang: 80 });
+  // 4060 × 800: 원장 5(300 × 14) 246,000 보다 원장 4 + 낱개 2(300 × 12 + 100 × 5) 237,500 이 싸다
+  const r = calculate([sq(4060, 800)]);
+  assert.deepEqual(r.items[0].widthPlan, { boards: 12, strips: 5, covered: 4100, overhang: 40 });
+  assert.deepEqual(r.boards.map((b) => b.sheets), [4]);
+  assert.deepEqual(r.stripOrders.map((s) => s.bars), [2]);
+  assert.equal(r.cutCount, 51);
+
+  // 세로가 짧으면 원장 1장보다 낱개 1개(100 × 3조각)가 싸다
+  assert.deepEqual(plan([sq(300, 800)]), [[0, 3]]);
+  // 원장당 1개면 낱개 3개(48,000)보다 원장 1장(45,000)
+  assert.deepEqual(plan([sq(300, 2000)]), [[1, 0]]);
+  // 원장 2조각이 한 장에 들어가면 원장
+  assert.deepEqual(plan([sq(600, 1200)]), [[2, 0]]);
+
+  // 기본 배치(widthPlan)와 금액이 같으면 기본 배치 그대로
+  const [tc1] = calculate([{ shape: 'half', color: '화이트', width: 1200, height: 2000, useMolding: true }]).items;
+  assert.deepEqual(tc1.widthPlan, { boards: 4, strips: 1, covered: 1280, overhang: 80 });
 });
 
-test('남는 원장 칸은 재단면끼리 나눠 쓰므로 주문 전체로 판단한다', () => {
-  // 400×800 두 면: 원장 1장(3칸)에 300 조각 2개 + 낱개 1개(3칸)에 100 조각 2개가 가장 싸다.
-  // 면마다 따로 보고 둘 다 원장 조각을 쓰면 4칸이라 원장이 2장이 된다.
+test('원장/낱개는 재단면끼리 나눠 쓰므로 주문 전체로 고른다', () => {
+  // 반달 295 × 1200 두 면: 따로 보면 낱개 3조각(2개)이 싸 보여도, 합치면 원장 1장에 2조각
   const two = calculate([
-    { shape: 'square', color: '화이트', width: 400, height: 800 },
-    { shape: 'square', color: '화이트', width: 400, height: 800 },
+    { shape: 'half', color: '화이트', width: 295, height: 1200 },
+    { shape: 'half', color: '화이트', width: 295, height: 1200 },
   ]);
   assert.deepEqual(two.boards.map((b) => b.sheets), [1]);
-  assert.deepEqual(two.stripOrders.map((s) => s.bars), [1]);
-
-  // 넘치는 폭만 늘고 아끼는 게 없으면 바꾸지 않는다
-  assert.deepEqual(two.items.map((i) => i.widthPlan.strips), [1, 1]);
-
-  // 반달 600×800 두 면: 하나만 바꾸면 아끼는 게 없지만 둘 다 바꾸면 6칸 = 원장 2장, 낱개 0
-  const half = calculate([
-    { shape: 'half', color: '화이트', width: 600, height: 800 },
-    { shape: 'half', color: '화이트', width: 600, height: 800 },
-  ]);
-  assert.deepEqual(half.boards.map((b) => b.sheets), [2]);
-  assert.equal(half.stripOrders.length, 0);
-
-  // 폭 100 짜리 면(원장 0장)도 다른 면 원장의 남는 칸을 쓴다
-  const narrow = calculate([
-    { shape: 'square', color: '화이트', width: 100, height: 800 },
-    { shape: 'square', color: '화이트', width: 250, height: 800 },
-  ]);
-  assert.deepEqual(narrow.boards.map((b) => b.sheets), [1]);
-  assert.equal(narrow.stripOrders.length, 0);
-});
-
-test('세로를 나누면 원장을 1장 더 사는 게 낱개보다 쌀 수 있다 — 금액으로 고른다', () => {
-  // 410 × 3000 → 2435 + 550. 2435 조각은 원장당 1개라 낱개 2개가 낱개 자재 2개를 먹는다.
-  // 300 × 1 + 100 × 2: 원장 2 + 낱개 3 / 300 × 2: 원장 3, 낱개 0 → 후자가 싸다
-  const [item] = calculate([{ shape: 'square', color: '화이트', width: 410, height: 3000 }]).items;
-  assert.deepEqual(item.widthPlan, { boards: 2, strips: 0, covered: 600, overhang: 190 });
+  assert.equal(two.stripOrders.length, 0);
+  // 하나만 있으면 낱개 3조각(낱개 2개 32,000 + 재단)이 원장 1장(40,500)보다 싸다
+  const [one] = calculate([{ shape: 'half', color: '화이트', width: 295, height: 1200 }]).items;
+  assert.deepEqual([one.widthPlan.boards, one.widthPlan.strips], [0, 3]);
 });
 
 test('몰딩 자투리는 색상별 합계', () => {
@@ -583,12 +571,12 @@ test('calculateItem 은 검증 실패 시 CuttingError 를 던진다', () => {
 // --- 끝단정리가 다른 동일 사양 ----------------------------------------------
 test('끝단정리 여부가 다르면 자재당 개수를 따로 계산하고 재단 줄은 합친다', () => {
   const result = calculate([
-    { shape: 'half', color: '화이트', width: 590, height: 795, trimEnds: false }, // 2조각 / 자재당 3 → 1개
-    { shape: 'half', color: '화이트', width: 590, height: 795, trimEnds: true },  // 2조각 / 자재당 2 → 1개
+    { shape: 'half', color: '화이트', width: 590, height: 1212, trimEnds: false }, // 재단 1217, 2조각 / 자재당 2 → 1개
+    { shape: 'half', color: '화이트', width: 590, height: 1212, trimEnds: true },  // 2조각 / 자재당 1 → 2개
   ]);
 
-  assert.equal(formatCuttingSheet(result), '반달-화이트 : 795 - 4조각');
-  assert.deepEqual(result.boards, [{ shape: '반달', shapeKey: 'half', color: '화이트', sheets: 2 }]);
+  assert.equal(formatCuttingSheet(result), '반달-화이트 : 1212 - 4조각');
+  assert.deepEqual(result.boards, [{ shape: '반달', shapeKey: 'half', color: '화이트', sheets: 3 }]);
 });
 
 // --- 4. 도면 데이터 ---------------------------------------------------------
@@ -624,13 +612,13 @@ test('벽면 배치도 — 세로가 나뉘면 행도 나뉜다', () => {
 });
 
 test('재단 도면 — 자재 1개에 들어가는 조각과 남는 길이', () => {
-  const result = calculate([{ shape: 'square', color: '화이트', width: 600, height: 800 }]);
+  const result = calculate([{ shape: 'square', color: '화이트', width: 600, height: 1200 }]);
 
-  // 재단 805, 자재당 3개인데 조각은 2개뿐 → 자재 1개에 2조각, 남음 2440 - 1610
+  // 재단 1205, 자재당 2개 → 자재 1개에 2조각, 남음 2440 - 2410
   assert.deepEqual(result.barGroups, [{
     shape: '사각', shapeKey: 'square', color: '화이트', kind: 'board', stockWidth: 300,
     sheetLength: 2440, usableLength: 2440, trimEnds: false,
-    cutLength: 805, finishedLength: 800, count: 2, used: 1610, tail: 830, bars: 1,
+    cutLength: 1205, finishedLength: 1200, count: 2, used: 2410, tail: 30, bars: 1,
   }]);
 });
 
